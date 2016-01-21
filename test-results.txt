@@ -9,6 +9,8 @@ PSU: Voltcraft SPS 2500-5
 It is rated at 12.5 Watts, which is less then is drawn.
 Operating temp is up to 35 C, but is 40 C
 
+Tempurature measurerer: Trotec BP21
+
 
 
 Test method: 
