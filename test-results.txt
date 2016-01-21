@@ -1,7 +1,28 @@
+Parts used:
+LED: LT-1501, https://www.led-tech.de/produkt-pdf/cree/xlamp_mce.pdf
+
+FET: http://www.irf.com/product-info/datasheets/data/irl1004.pdf
+
+Transistor: https://www.sparkfun.com/datasheets/Components/2N3904.pdf
+
+PSU: Voltcraft SPS 2500-5
+It is rated at 12.5 Watts, which is less then is drawn.
+Operating temp is up to 35 C, but is 40 C
+
+
+
 Test method: 
 Select the to be tested code, watch the meter for a minute or two.
 
-Heatsinks hot:
+Hot:
+LED: 68 C
+According to datasheet, the LED has only 87 % of luminous flux at this temp.
+
+FET + transistor: 55 C
+There are no temperature limitations for these semi-conductors at these temps.
+
+PSU: 40 C
+No datasheet with characteristics found.
 
 0 1s: 0.106 ~ 0.109 amps
 1 1s: 0.107 ~ 0.109 amps
