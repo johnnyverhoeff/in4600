@@ -16,7 +16,7 @@ Heatsinks hot:
 0, 4, 8 could be used and be differentiated from eachother.
 
 
-Heatsinks cold:
+Heatsinks cold, around room temperature 25 C:
 
 0 1s: 0.117 ~ 0.118 amps
 1 1s: 0.117 ~ 0.118 amps
