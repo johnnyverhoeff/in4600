@@ -1,6 +1,8 @@
 Test method: 
 Select the to be tested code, watch the meter for a minute or two.
 
+Heatsinks hot:
+
 0 1s: 0.106 ~ 0.109 amps
 1 1s: 0.107 ~ 0.109 amps
 2 1s: 0.109 ~ 0.111 amps
@@ -10,3 +12,15 @@ Select the to be tested code, watch the meter for a minute or two.
 6 1s: 0.114 ~ 0.116 amps
 7 1s: 0.114 ~ 0.116 amps
 8 1s: 0.116 ~ 0.117 amps
+
+Heatsinks cold:
+
+0 1s: 0.117 ~ 0.118 amps
+1 1s: 0.117 ~ 0.118 amps
+2 1s: 0.118 ~ 0.119 amps
+3 1s: 0.119 ~ 0.120 amps
+4 1s: 0.120 ~ 0.121 amps
+5 1s: 0.121 ~ 0.122 amps
+6 1s: 0.122 ~ 0.122 amps
+7 1s: 0.122 ~ 0.123 amps
+8 1s: 0.123 ~ 0.125 amps
