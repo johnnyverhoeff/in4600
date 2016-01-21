@@ -13,6 +13,9 @@ Heatsinks hot:
 7 1s: 0.114 ~ 0.116 amps
 8 1s: 0.116 ~ 0.117 amps
 
+0, 4, 8 could be used and be differentiated from eachother.
+
+
 Heatsinks cold:
 
 0 1s: 0.117 ~ 0.118 amps
@@ -24,3 +27,5 @@ Heatsinks cold:
 6 1s: 0.122 ~ 0.122 amps
 7 1s: 0.122 ~ 0.123 amps
 8 1s: 0.123 ~ 0.125 amps
+
+0, 3, 5, 8 could be used, not sure if they can be succesfully superimposed on each other yet.
