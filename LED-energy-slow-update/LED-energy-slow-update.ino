@@ -1,3 +1,24 @@
+/*
+ * Since the PM001-DG / gsm00812 can only measure at a rate of 1 Hz
+ * and the displayed power is the area under the VA over time curve
+ * and it is only +/- 2 % accurate
+ * and the setup takes ~14 to 15 watts,
+ * if we draw a continous current we are already .1 ~ .2 watts off of the real 
+ * power consumed.
+ * So we have to use very discrete steps of maybe more than 0.3 watts.
+ * Everything is measured in amps, so that the voltage doesn't need to be taken into account
+ * Temperatures also play a role.
+ * When the LED warms up, it generates less light, and seems to draw less current.
+ * Also the SPS provided works outside his temperature and power ratings.
+ * 
+ * So we need to draw less current to distinguish an LED.
+ * And even less for a second one.
+ * Drawback is that the generated light will also be less, a couple of %
+ * 
+ */
+
+
+
 
 uint8_t code_0[] = {0, 0, 0, 0, 0, 0, 0, 0};
 uint8_t code_1[] = {0, 0, 0, 0, 0, 0, 0, 1};
