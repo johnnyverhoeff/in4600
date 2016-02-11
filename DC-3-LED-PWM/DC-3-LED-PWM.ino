@@ -39,7 +39,7 @@ void initializeTimer() {
   TCNT1  = 0;
 
   //frequency of preamble
-  int freq = 10;
+  int freq = 3000;
   int value = 16000000 / 256 /  freq / 2 ;
 
   OCR1A = value;            // compare match register 16MHz/256/2Hz
