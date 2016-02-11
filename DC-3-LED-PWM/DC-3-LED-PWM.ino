@@ -1,13 +1,15 @@
 uint8_t sensorPin = A0;
 
 uint8_t led_pins[] = {3, 5, 6};
-uint8_t led_size = 3;
+const uint8_t led_size = 3;
 
 uint8_t led_data[] = {
     1,
-    1,
-    0
+    0,
+    1
   };
+
+uint8_t decoded_led_data[led_size];
 
 const uint8_t code_size = 8;
 
@@ -37,7 +39,7 @@ void initializeTimer() {
   TCNT1  = 0;
 
   //frequency of preamble
-  int freq = 1;
+  int freq = 10;
   int value = 16000000 / 256 /  freq / 2 ;
 
   OCR1A = value;            // compare match register 16MHz/256/2Hz
@@ -83,8 +85,22 @@ void decode_leds() {
     avg_value /= code_size;
   
   
-    Serial.print("led"); Serial.print(led); Serial.print(": ");
-    Serial.println(avg_value);
+    //Serial.print("led"); Serial.print(led); Serial.print(": ");
+    //Serial.println(avg_value);
+
+    if (avg_value >= 19000 && avg_value <= 21000)
+      avg_value = 20000;
+    else if (avg_value >= 29000 && avg_value <= 31000)
+      avg_value = 30000;
+    else if (avg_value >= 39000 && avg_value <= 41000)
+      avg_value = 40000;
+
+    avg_value = ((avg_value / 200) % 200);
+
+    if (avg_value == 150) avg_value = 2;
+    else avg_value /= 100;
+
+    decoded_led_data[led] = avg_value;
   }
   
   
@@ -110,14 +126,16 @@ void loop() {
     enableTimer = 0;
     code_pointer = 0;
     
-    delay(2000);
 
-    /*for (int i = 0; i < code_size; i++) {
-      Serial.println(read_values[i]);
-    }*/
     Serial.println();
     decode_leds();
     Serial.println();
+
+    for (int i = 0; i < led_size; i++) {
+      Serial.print("Led "); Serial.print(i); Serial.print(": "); Serial.println(decoded_led_data[i]);
+    }
+
+    delay(2000);
     enableTimer = 1;
   }
 }
