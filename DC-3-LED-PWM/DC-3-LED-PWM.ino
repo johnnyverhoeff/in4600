@@ -4,18 +4,20 @@ uint8_t led_pins[] = {3, 5, 6};
 uint8_t led_size = 3;
 
 uint8_t led_data[] = {
-    0,
     1,
-    1
+    1,
+    0
   };
 
-uint8_t codes[][4] = {
-    {0, 1, 0, 1},
-    {0, 0, 1, 1},
-    {0, 1, 1, 0}
+const uint8_t code_size = 8;
+
+uint8_t codes[][code_size] = {
+    {0, 1, 0, 1, 0, 1, 0, 1},
+    {0, 0, 1, 1, 0, 0, 1, 1},
+    {0, 1, 1, 0, 0, 1, 1, 0}
   };
 
-uint8_t code_size = 4;
+
 
 uint8_t minVal = 190;
 uint8_t maxVal = 215;
@@ -24,7 +26,7 @@ uint8_t enableTimer = 0;
 
 uint8_t code_pointer = 0;
 
-uint16_t read_values[4];
+uint16_t read_values[code_size];
 
 void initializeTimer() {
 
@@ -63,12 +65,12 @@ ISR(TIMER1_COMPA_vect) {          // timer compare interrupt service routine
 void decode_leds() {
   for (int led = 0; led < led_size; led++) {
   
-    uint32_t orthogonal_code_representation[4];
+    uint32_t orthogonal_code_representation[code_size];
     for (int i = 0; i < code_size; i++) {
       orthogonal_code_representation[i] = codes[led][i] * 200;
     }
   
-    uint32_t multiply_array[4];
+    uint32_t multiply_array[code_size];
   
     for (int i = 0; i < code_size; i++) {
       multiply_array[i] = orthogonal_code_representation[i] * read_values[i];
@@ -110,9 +112,9 @@ void loop() {
     
     delay(2000);
 
-    for (int i = 0; i < code_size; i++) {
+    /*for (int i = 0; i < code_size; i++) {
       Serial.println(read_values[i]);
-    }
+    }*/
     Serial.println();
     decode_leds();
     Serial.println();
