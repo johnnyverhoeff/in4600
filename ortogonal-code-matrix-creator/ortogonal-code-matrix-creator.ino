@@ -1,19 +1,27 @@
-#define MAX_DIMENSION 8
+#include "hadamard_matrix_generator.h"
 
-uint8_t start_chip = 0;
+#define START_CHIP 1
+#define CODE_LENGTH 8
 
-uint8_t matrix[MAX_DIMENSION][MAX_DIMENSION];
+hadamard_matrix_generator hmg(START_CHIP, CODE_LENGTH);
 
 void print_matrix() {
-  Serial.println("*******");
-  for (int i = 0; i < MAX_DIMENSION; i++) {
-    for (int j = 0; j < MAX_DIMENSION; j++) {
-      Serial.print(matrix[i][j]);
+
+  for (uint8_t i = 0; i < 2 * CODE_LENGTH - 1; i++)
+    Serial.print("*");
+  Serial.println();
+
+  for (uint8_t i = 0; i < CODE_LENGTH; i++) {
+    for (uint8_t j = 0; j < CODE_LENGTH; j++) {
+      Serial.print(hmg.get_code_matrix()[i][j]);
       Serial.print(" ");
     }
     Serial.println();
   }
-  Serial.println("*******");
+
+  for (uint8_t i = 0; i < 2 * CODE_LENGTH - 1; i++)
+    Serial.print("*");
+  Serial.println();
 }
 
 void setup() {
@@ -21,40 +29,12 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Begun!");
 
-  matrix[0][0] = start_chip;
-
-
-  // inspiration taken from: 
-  http://stackoverflow.com/questions/18604659/hadamard-matrix-code
-  
-  for (int i = 2; i <= MAX_DIMENSION; i *= 2) {
-    for (int x = 0; x < (i / 2); x++) {
-      for (int y = i / 2; y < i; y++) {
-        matrix[x][y] = matrix[x][y - i / 2];
-      }
-    }
-
-    for (int y = 0; y < (i / 2); y++) {
-      for (int x = i / 2; x < i; x++) {
-        matrix[x][y] = matrix[x - (i / 2)][y];
-      }
-    }
-
-    for (int x = i / 2; x < i; x++) {
-      for (int y = i / 2; y < i; y++){
-        matrix[x][y] = !matrix[x - i / 2][y - i / 2];
-
-      }
-    }
-  }
+  Serial.print("code_length: "); Serial.println(hmg.get_code_length());
+  Serial.print("start_chip: "); Serial.println(hmg.get_start_chip());
 
   print_matrix();
 
-  for (int i = 0; i < MAX_DIMENSION; i++) {
-    Serial.print(matrix[MAX_DIMENSION - 3][i]);
-    Serial.print(" ");
-  }
-
+  Serial.println("Done!");
 }
 
 void loop() {
