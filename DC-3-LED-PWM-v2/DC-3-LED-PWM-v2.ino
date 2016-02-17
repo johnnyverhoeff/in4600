@@ -47,6 +47,14 @@ void randomize_led_data(void) {
   }
 }
 
+void clear_led_data(void) {
+  for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+    for (uint8_t bit_pos = 0; bit_pos < DATA_LENGTH; bit_pos++) {
+      led_data[led][bit_pos] = 0;
+    }
+  }
+}
+
 void initializeTimer() {
 
   // initialize timer1
@@ -101,6 +109,9 @@ void decode_leds() {
 }
 
 void setup() {
+
+  randomSeed(analogRead(1));
+  
   for (uint8_t i = 0; i < NUM_OF_LEDS; i++) {
     pinMode(leds[i], OUTPUT);
     digitalWrite(leds[i], LOW);
@@ -118,9 +129,22 @@ void setup() {
     );
   }
 
+  clear_led_data();
+
   randomize_led_data();
+
+  Serial.println("Each led data: ");
+  for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+    Serial.print("led"); Serial.print(led); Serial.print(": ");
+    for (uint8_t d = 0; d < DATA_LENGTH; d++) {
+      Serial.print(led_data[led][d]); Serial.print(" ");
+    }
+    Serial.println();
+  }
+  Serial.println();
+
   
-/*
+  Serial.println("Each led code: ");
   for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
     Serial.print("led"); Serial.print(led); Serial.print(": ");
     for (uint8_t c = 0; c < CODE_LENGTH; c++) {
