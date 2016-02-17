@@ -10,11 +10,11 @@
 #define DATA_LENGTH 8
 
 uint8_t leds[] = {3, 5, 6};
-uint8_t led_data[NUM_OF_LEDS][DATA_LENGTH]/* = {
-    {0, 0, 1},
-    {0, 1, 0},
-    {1, 0, 1}
-  }*/;
+uint8_t led_data[NUM_OF_LEDS][DATA_LENGTH] = {
+    {0, 0, 0, 0, 1, 1, 1, 1},
+    {1, 1, 1, 1, 0, 0, 0, 0},
+    {0, 0, 1, 1, 1, 1, 0, 0}
+  };
 
 uint8_t enableTimer = 0;
 
@@ -25,13 +25,13 @@ encoder *encoders[NUM_OF_LEDS];
 
 
 
+#define IDEAL_1_LED_ADC_VAL 200
+#define MIN_1_LED_ADC_VAL 190
+#define MAX_1_LED_ADC_VAL 215
 
 
 uint8_t code_bit_counter = 0;
 uint8_t data_bit_counter = 0;
-
-uint8_t minVal = 190;
-uint8_t maxVal = 215;
 
 uint16_t read_values[CODE_LENGTH];
 
@@ -77,22 +77,63 @@ void initializeTimer() {
   interrupts();             // enable all interrupts
 }
 
-void decode_leds() {
+uint8_t decode_num_of_leds(void) {
+  uint32_t sum = 0;
+  for (uint8_t i = 0; i < CODE_LENGTH; i++) {
+    sum += read_values[i];
+  }
+  
+  /*Serial.print("Raw sum: "); Serial.println(sum);
+  Serial.print("sum / IDEAL_1_LED_ADC_VAL: "); Serial.println(sum / IDEAL_1_LED_ADC_VAL);
+  Serial.print("Calc. num_of_leds: "); Serial.println(sum / IDEAL_1_LED_ADC_VAL / (CODE_LENGTH / 2));*/
+  
+  uint8_t calc_num_of_leds = sum / IDEAL_1_LED_ADC_VAL / (CODE_LENGTH / 2);
+  //Serial.print("Calc. num_of_leds: "); Serial.println(calc_num_of_leds);
+
+  return calc_num_of_leds;
+}
+
+void decode_data_of_leds(void) {
+
+  uint8_t calc_num_of_leds = decode_num_of_leds();
+
   for (int led = 0; led < NUM_OF_LEDS; led++) {
     uint32_t avg_value = 0;
     
     for (int i = 0; i < CODE_LENGTH; i++) {
-      uint32_t orthogonal_code_representation = encoders[led]->get_orthogonal_code()[i] * 200;
+      uint32_t orthogonal_code_representation = encoders[led]->get_orthogonal_code()[i] * IDEAL_1_LED_ADC_VAL;
       uint32_t product = orthogonal_code_representation * read_values[i];
       avg_value += product;
     }
     avg_value /= CODE_LENGTH;
 
 
-    //Serial.print("led"); Serial.print(led); Serial.print(": ");
-    //Serial.println(avg_value);
+    
 
-    if (avg_value >= 19000 && avg_value <= 21000)
+    uint8_t decoded_val = (avg_value / 10000) - (calc_num_of_leds - 1);
+
+    /*Serial.print("led"); Serial.print(led); Serial.print(": ");
+    Serial.println(avg_value);
+
+    Serial.print("Decoding: "); Serial.println(decoded_val);*/
+
+    uint8_t logical_val = 2; // 2 is unused val....
+
+    switch (decoded_val) {
+      case 0:
+        logical_val = 1;
+        break;
+      case 1:
+        logical_val = 2;
+        break;
+      case 2:
+        logical_val = 0;
+        break;
+    }
+
+    //Serial.print("Logical value: "); Serial.println(logical_val);
+
+    /*if (avg_value >= 19000 && avg_value <= 21000)
       avg_value = 20000;
     else if (avg_value >= 29000 && avg_value <= 31000)
       avg_value = 30000;
@@ -102,9 +143,9 @@ void decode_leds() {
     avg_value = ((avg_value / 200) % 200);
 
     if (avg_value == 150) avg_value = 2;
-    else avg_value /= 100;
+    else avg_value /= 100;*/
 
-    decoded_led_data[led][data_bit_counter] = avg_value;
+    decoded_led_data[led][data_bit_counter] = logical_val;
   }
 }
 
@@ -128,10 +169,10 @@ void setup() {
       DATA_LENGTH
     );
   }
-
+/*
   clear_led_data();
-
   randomize_led_data();
+*/
 
   Serial.println("Each led data: ");
   for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
@@ -154,7 +195,7 @@ void setup() {
   }
   
   delay(1000);
-*/
+
   initializeTimer();
 
   enableTimer = 1;
@@ -165,15 +206,15 @@ void loop() {
     enableTimer = 0;
     code_bit_counter = 0;
     
-    
+    //decode_num_of_leds();
 
-    decode_leds();
+    decode_data_of_leds();
 
 
     data_bit_counter++;
     if (data_bit_counter >= DATA_LENGTH) {
       data_bit_counter = 0;
-    
+   /* 
       for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
         for (uint8_t data_bit = 0; data_bit < DATA_LENGTH; data_bit++) {
           if (led_data[led][data_bit] != decoded_led_data[led][data_bit]) {
@@ -185,8 +226,8 @@ void loop() {
           }
         }
       }
-
-      /*
+*/
+      
       for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
         Serial.print("Led "); Serial.print(led); Serial.print(": "); 
         for (uint8_t d = 0; d < DATA_LENGTH; d++) {
@@ -197,9 +238,9 @@ void loop() {
       }
       Serial.println();
       delay(2000);
-      */
+      
 
-      randomize_led_data();
+      //randomize_led_data();
     }
 
     
