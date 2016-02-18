@@ -205,8 +205,14 @@ void loop() {
   if (code_bit_counter >= CODE_LENGTH) {
     enableTimer = 0;
     code_bit_counter = 0;
-    
+
     //decode_num_of_leds();
+
+    for (int i = 0; i < CODE_LENGTH; i++) {
+      Serial.print(read_values[i]);
+      Serial.print(" ");
+    }
+    Serial.println();
 
     decode_data_of_leds();
 
@@ -214,12 +220,12 @@ void loop() {
     data_bit_counter++;
     if (data_bit_counter >= DATA_LENGTH) {
       data_bit_counter = 0;
-   /* 
+   /*
       for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
         for (uint8_t data_bit = 0; data_bit < DATA_LENGTH; data_bit++) {
           if (led_data[led][data_bit] != decoded_led_data[led][data_bit]) {
-            Serial.print("Mismatch: "); 
-            Serial.print("LED: "); 
+            Serial.print("Mismatch: ");
+            Serial.print("LED: ");
             Serial.print(led);
             Serial.print(", data_bit: ");
             Serial.println(data_bit);
@@ -248,6 +254,15 @@ void loop() {
   }
 }
 
+uint16_t clamp_measurements(uint16_t m) {
+  for (uint8_t i = 0; i < (NUM_OF_LEDS + 1); i++) {
+    if (m >= i * MIN_1_LED_ADC_VAL && m <= i * MAX_1_LED_ADC_VAL)
+      return i * IDEAL_1_LED_ADC_VAL;
+  }
+
+  return m;
+}
+
 
 ISR(TIMER1_COMPA_vect) {
   // timer compare interrupt service routine
@@ -257,7 +272,7 @@ ISR(TIMER1_COMPA_vect) {
       digitalWrite(leds[led], encoders[led]->get_next_encoded_bit());
     }
 
-    read_values[code_bit_counter] = analogRead(SENSOR_PIN);
+    read_values[code_bit_counter] = clamp_measurements(analogRead(SENSOR_PIN));
     code_bit_counter++;
   }
 }
