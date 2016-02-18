@@ -9,10 +9,12 @@ decoder::decoder(
   _hmg(hmg),
   _data_length(data_length) {
 
-  _measured_data = new uint8_t[_hmg->get_code_length()];
+  _measured_data = new uint16_t[_hmg->get_code_length()];
 
   _code_bit_position = 0;
   _data_bit_position = 0;
+
+  _data_ready = 0;
 
   _initialize_decoded_matrix();
 }
@@ -24,14 +26,23 @@ void decoder::_initialize_decoded_matrix(void) {
     _decoded_led_data[code] = new uint8_t[_data_length];
 
   for (uint8_t code = 0; code < _hmg->get_code_length(); code++) {
-    for (uint8_t d = 0; d < _hmg->get_code_length(); d++) {
+    for (uint8_t d = 0; d < _data_length; d++) {
       _decoded_led_data[code][d] = LOGICAL_UNUSED;
     }
   }
 }
 
+uint16_t decoder::_clamp_measurements(uint16_t m) {
+  for (uint8_t i = 0; i < _hmg->get_code_length(); i++) {
+    if (m >= i * MIN_1_LED_ADC_VAL && m <= i * MAX_1_LED_ADC_VAL)
+      return i * IDEAL_1_LED_ADC_VAL;
+  }
+
+  return m;
+}
+
 void decoder::measure(void) {
-  _measured_data[_code_bit_position++] = analogRead(_adc_pin);
+  _measured_data[_code_bit_position++] = _clamp_measurements(analogRead(_adc_pin));
 
   if (_code_bit_position >= _hmg->get_code_length()) {
     _code_bit_position = 0;
@@ -41,19 +52,25 @@ void decoder::measure(void) {
     _data_bit_position++;
     if (_data_bit_position >= _data_length) {
       _data_bit_position = 0;
+      _data_ready = 1;
 
-      // can show complete result now;
-      for (uint8_t code = 0; code < _hmg->get_code_length(); code++) {
-        Serial.print("code "); Serial.print(code); Serial.print(": ");
-        for (uint8_t d = 0; d < _data_length; d++) {
-          Serial.print(_decoded_led_data[code][d]);
-          Serial.print(" ");
-        }
-        Serial.println();
-      }
-      Serial.println();
     }
+
+
+
   }
+}
+
+uint8_t decoder::is_decoded_data_ready(void) {
+  if (_data_ready) {
+    _data_ready = 0;
+    return 1;
+  } else
+    return 0;
+}
+
+uint8_t** decoder::get_decoded_led_data(void) {
+  return _decoded_led_data;
 }
 
 void decoder::_decode_led_data(void) {
@@ -63,11 +80,11 @@ void decoder::_decode_led_data(void) {
 
   uint8_t calculated_num_of_leds = sum_of_measured_vals / IDEAL_1_LED_ADC_VAL / (_hmg->get_code_length() / 2);
 
-  for (uint8_t code = 0; code < _hmg->get_code_length(); code++) {
+  for (uint8_t code = 0; code < (_hmg->get_code_length() - 1); code++) {
     uint32_t avg_val = 0;
 
     for (uint8_t chip = 0; chip < _hmg->get_code_length(); chip++) {
-      uint32_t orthogonal_code_representation = _hmg->get_code_matrix()[code][chip] * IDEAL_1_LED_ADC_VAL;
+      uint32_t orthogonal_code_representation = _hmg->get_code_matrix()[code + 1][chip] * IDEAL_1_LED_ADC_VAL;
       uint32_t product = orthogonal_code_representation * _measured_data[chip];
       avg_val += product;
     }
@@ -79,6 +96,7 @@ void decoder::_decode_led_data(void) {
 
     _decoded_led_data[code][_data_bit_position] = _from_encoded_val_to_logical_val(encoded_val);
   }
+
 }
 
 uint8_t decoder::_from_encoded_val_to_logical_val(uint8_t encoded_val) {

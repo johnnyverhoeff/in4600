@@ -11,8 +11,8 @@
 #include "Arduino.h"
 
 #define IDEAL_1_LED_ADC_VAL 200
-#define MIN_1_LED_ADC_VAL 190
-#define MAX_1_LED_ADC_VAL 215
+#define MIN_1_LED_ADC_VAL 180
+#define MAX_1_LED_ADC_VAL 220
 
 #define ENCODED_UNUSED 1
 #define ENCODED_0 2
@@ -29,6 +29,9 @@ public:
 
   void measure(void);
 
+  uint8_t is_decoded_data_ready(void);
+  uint8_t **get_decoded_led_data(void);
+
 private:
   const uint8_t _adc_pin;
 
@@ -36,14 +39,18 @@ private:
 
   const uint8_t _data_length;
 
-  uint8_t *_measured_data;
+  uint16_t *_measured_data;
   uint8_t _code_bit_position;
   uint8_t _data_bit_position;
   uint8_t **_decoded_led_data;
 
+  uint8_t _data_ready;
+
   void _initialize_decoded_matrix(void);
   uint8_t _from_encoded_val_to_logical_val(uint8_t encoded_val);
   void _decode_led_data(void);
+
+  uint16_t _clamp_measurements(uint16_t m);
 };
 
 

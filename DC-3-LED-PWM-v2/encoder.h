@@ -12,8 +12,10 @@ class encoder {
 
 public:
   encoder(
-    uint8_t* orthogonal_code, const uint8_t code_length,
-    uint8_t* data, const uint8_t data_length
+    uint8_t* orthogonal_code,
+    const uint8_t code_length,
+    uint8_t* data,
+    const uint8_t data_length
   );
 
   uint8_t get_next_encoded_bit(void);

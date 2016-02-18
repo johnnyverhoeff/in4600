@@ -54,7 +54,7 @@ void initializeTimer() {
 
 
 ISR(TIMER1_COMPA_vect) {          // timer compare interrupt service routine
-  if(enableTimer != 0 ){      
+  if(enableTimer != 0 ){
     for (int i = 0; i < led_size; i++) {
       digitalWrite(led_pins[i], codes[i][code_pointer] ^ led_data[i]);
     }
@@ -66,25 +66,25 @@ ISR(TIMER1_COMPA_vect) {          // timer compare interrupt service routine
 
 void decode_leds() {
   for (int led = 0; led < led_size; led++) {
-  
+
     uint32_t orthogonal_code_representation[code_size];
     for (int i = 0; i < code_size; i++) {
       orthogonal_code_representation[i] = codes[led][i] * 200;
     }
-  
+
     uint32_t multiply_array[code_size];
-  
+
     for (int i = 0; i < code_size; i++) {
       multiply_array[i] = orthogonal_code_representation[i] * read_values[i];
     }
-  
+
     uint32_t avg_value = 0;
     for (int i = 0; i < code_size; i++) {
       avg_value += multiply_array[i];
     }
     avg_value /= code_size;
-  
-  
+
+
     //Serial.print("led"); Serial.print(led); Serial.print(": ");
     //Serial.println(avg_value);
 
@@ -102,8 +102,8 @@ void decode_leds() {
 
     decoded_led_data[led] = avg_value;
   }
-  
-  
+
+
 }
 
 
@@ -112,7 +112,7 @@ void setup() {
     pinMode(led_pins[i], OUTPUT);
     digitalWrite(led_pins[i], LOW);
   }
-  
+
   Serial.begin(115200);
   Serial.println("Begun");
 
@@ -125,7 +125,7 @@ void loop() {
   if (code_pointer >= code_size) {
     enableTimer = 0;
     code_pointer = 0;
-    
+
 
     Serial.println();
     decode_leds();
@@ -139,4 +139,3 @@ void loop() {
     enableTimer = 1;
   }
 }
-
