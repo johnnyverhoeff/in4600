@@ -16,7 +16,18 @@ decoder::decoder(
 
   _data_ready = 0;
 
+  _white_list = new uint8_t[_hmg->get_code_length()];
+  _black_list = new uint8_t[_hmg->get_code_length()];
+
   _initialize_decoded_matrix();
+  _init_access_lists();
+}
+
+void decoder::_init_access_lists(void) {
+  for (uint8_t i = 0; i < _hmg->get_code_length(); i++) {
+    _white_list[i] = 1;
+    _black_list[i] = 0;
+  }
 }
 
 void decoder::_initialize_decoded_matrix(void) {
@@ -109,3 +120,27 @@ uint8_t decoder::_from_encoded_val_to_logical_val(int8_t encoded_val) {
     return LOGICAL_1;
 
 }
+
+uint8_t decoder::is_code_white_listed(uint8_t code_number) {
+  if (code_number < _hmg->get_code_length()) {
+    return _white_list[code_number];
+  } else {
+    return 0;
+  }
+}
+
+uint8_t decoder::is_code_black_listed(uint8_t code_number) {
+  if (code_number < _hmg->get_code_length()) {
+    return _black_list[code_number];
+  } else {
+    return 0;
+  }
+}
+
+void decoder::black_list_code(uint8_t code_number) {
+  if (code_number < _hmg->get_code_length()) {
+    _black_list[code_number] = 1;
+    _white_list[code_number] = 0;
+  }
+}
+

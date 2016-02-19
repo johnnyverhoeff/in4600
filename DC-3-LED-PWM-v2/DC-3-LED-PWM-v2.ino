@@ -84,7 +84,8 @@ void setup() {
 
   for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
     encoders[led] = new encoder(
-      hmg.get_code_matrix()[1 + led],
+      hmg.get_code_matrix(),
+      1 + led,
       CODE_LENGTH,
       led_data[led],
       DATA_LENGTH
@@ -126,6 +127,18 @@ void setup() {
     Serial.println();
   }
 
+  d.black_list_code(1);
+
+  Serial.println("White listed: ");
+  for (uint8_t i = 0; i < CODE_LENGTH; i++) {
+    Serial.print(i); Serial.print(": "); Serial.println(d.is_code_white_listed(i));
+  }
+
+  Serial.println("Black listed: ");
+  for (uint8_t i = 0; i < CODE_LENGTH; i++) {
+    Serial.print(i); Serial.print(": "); Serial.println(d.is_code_black_listed(i));
+  }
+
   delay(1000);
 
   initializeTimer();
@@ -143,7 +156,7 @@ void loop() {
     for (int i = 0; i < NUM_OF_LEDS; i++)
       digitalWrite(leds[i], HIGH);
 
-    Serial.println("Randomized led data: ");
+    Serial.println("led data: ");
     for (int i = 0; i < NUM_OF_LEDS; i++) {
       Serial.print("LED"); Serial.print(i); Serial.print(": ");
       for (int j = 0; j < DATA_LENGTH; j++) {
@@ -155,15 +168,31 @@ void loop() {
 
 
     uint8_t** t = d.get_decoded_led_data();
-    Serial.println();
-    Serial.println("Decoded data: ");
-    for (int i = 0; i < (CODE_LENGTH - 0); i++) {
-      for (int j = 0; j < DATA_LENGTH; j++) {
-        Serial.print(t[i][j]); Serial.print(" ");
+
+    Serial.println("Decoded white listed led data: ");
+    for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+      uint8_t code_number = encoders[led]->get_code_number();
+      if (d.is_code_white_listed(code_number)) {
+        Serial.print("LED"); Serial.print(led); Serial.print(": ");
+        for (int j = 0; j < DATA_LENGTH; j++) {
+          Serial.print(t[code_number - 1][j]); Serial.print(" ");
+        }
+        Serial.println();
       }
-      Serial.println();
     }
     Serial.println();
+
+    Serial.println("Decoded black listed led data: ");
+    for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+      uint8_t code_number = encoders[led]->get_code_number();
+      if (d.is_code_black_listed(code_number)) {
+        Serial.print("LED"); Serial.print(led); Serial.print(": ");
+        for (int j = 0; j < DATA_LENGTH; j++) {
+          Serial.print(t[code_number - 1][j]); Serial.print(" ");
+        }
+        Serial.println();
+      }
+    }
 
 
     for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {

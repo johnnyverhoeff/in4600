@@ -32,6 +32,11 @@ public:
   uint8_t is_decoded_data_ready(void);
   uint8_t **get_decoded_led_data(void);
 
+  uint8_t is_code_white_listed(uint8_t code_number);
+  uint8_t is_code_black_listed(uint8_t code_number);
+
+  void black_list_code(uint8_t code_number);
+
 private:
   const uint8_t _adc_pin;
 
@@ -45,6 +50,11 @@ private:
   uint8_t **_decoded_led_data;
 
   uint8_t _data_ready;
+
+  uint8_t *_white_list;
+  uint8_t *_black_list;
+
+  void _init_access_lists(void);
 
   void _initialize_decoded_matrix(void);
   uint8_t _from_encoded_val_to_logical_val(int8_t encoded_val);
