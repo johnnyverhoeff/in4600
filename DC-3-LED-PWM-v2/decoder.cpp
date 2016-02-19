@@ -92,25 +92,20 @@ void decoder::_decode_led_data(void) {
     avg_val /= _hmg->get_code_length();
 
     // TODO: figure out WHY 10000
-    uint8_t encoded_val = (avg_val / 10000) - (calculated_num_of_leds - 1);
+    int8_t encoded_val = (avg_val / 10000) - (calculated_num_of_leds - 1);
 
     _decoded_led_data[code][_data_bit_position] = _from_encoded_val_to_logical_val(encoded_val);
   }
 
 }
 
-uint8_t decoder::_from_encoded_val_to_logical_val(uint8_t encoded_val) {
-  switch (encoded_val) {
-    case ENCODED_UNUSED:
-      return LOGICAL_UNUSED;
+uint8_t decoder::_from_encoded_val_to_logical_val(int8_t encoded_val) {
 
-    case ENCODED_0:
-      return LOGICAL_0;
+  if (encoded_val == ENCODED_UNUSED)
+    return LOGICAL_UNUSED;
+  else if (encoded_val >= ENCODED_0)
+    return LOGICAL_0;
+  else if (encoded_val <= ENCODED_1)
+    return LOGICAL_1;
 
-    case ENCODED_1:
-      return LOGICAL_1;
-
-    default:
-      return LOGICAL_UNUSED;
-  }
 }

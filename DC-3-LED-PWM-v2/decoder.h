@@ -47,7 +47,7 @@ private:
   uint8_t _data_ready;
 
   void _initialize_decoded_matrix(void);
-  uint8_t _from_encoded_val_to_logical_val(uint8_t encoded_val);
+  uint8_t _from_encoded_val_to_logical_val(int8_t encoded_val);
   void _decode_led_data(void);
 
   uint16_t _clamp_measurements(uint16_t m);
