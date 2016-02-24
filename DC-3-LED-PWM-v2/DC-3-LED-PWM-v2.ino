@@ -2,18 +2,27 @@
 #include "hadamard_matrix_generator.h"
 
 #define SENSOR_PIN A0
-#define NUM_OF_LEDS 3
+#define NUM_OF_LEDS 2
 
 #define START_CHIP 0
+<<<<<<< Updated upstream
 #define CODE_LENGTH 4
+=======
+#define CODE_LENGTH 16
+>>>>>>> Stashed changes
 
 #define DATA_LENGTH 8
 
 uint8_t leds[] = {3, 5, 6};
 uint8_t led_data[NUM_OF_LEDS][DATA_LENGTH] = {
-    {0, 0, 0, 0, 1, 1, 1, 1},
-    {1, 1, 1, 1, 0, 0, 0, 0},
-    {0, 0, 1, 1, 1, 1, 0, 0}
+
+    //{0, 1, 0, 1, 0, 1, 0, 1},
+    {0, 0, 1, 1, 0, 0, 1, 1},
+    {0, 0, 0, 0, 1, 1, 1, 1}
+    /*{0},
+    {0},
+    {1}*/
+
   };
 
 uint8_t enableTimer = 0;
@@ -36,24 +45,6 @@ uint8_t data_bit_counter = 0;
 uint16_t read_values[CODE_LENGTH];
 
 uint8_t decoded_led_data[NUM_OF_LEDS][DATA_LENGTH];
-
-
-void randomize_led_data(void) {
-  for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
-    uint8_t random_number = random(0, 256);
-    for (uint8_t bit_pos = 0; bit_pos < DATA_LENGTH; bit_pos++) {
-      led_data[led][DATA_LENGTH - bit_pos] = bitRead(random_number, bit_pos);
-    }
-  }
-}
-
-void clear_led_data(void) {
-  for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
-    for (uint8_t bit_pos = 0; bit_pos < DATA_LENGTH; bit_pos++) {
-      led_data[led][bit_pos] = 0;
-    }
-  }
-}
 
 void initializeTimer() {
 
@@ -82,11 +73,11 @@ uint8_t decode_num_of_leds(void) {
   for (uint8_t i = 0; i < CODE_LENGTH; i++) {
     sum += read_values[i];
   }
-  
+
   /*Serial.print("Raw sum: "); Serial.println(sum);
   Serial.print("sum / IDEAL_1_LED_ADC_VAL: "); Serial.println(sum / IDEAL_1_LED_ADC_VAL);
   Serial.print("Calc. num_of_leds: "); Serial.println(sum / IDEAL_1_LED_ADC_VAL / (CODE_LENGTH / 2));*/
-  
+
   uint8_t calc_num_of_leds = sum / IDEAL_1_LED_ADC_VAL / (CODE_LENGTH / 2);
   //Serial.print("Calc. num_of_leds: "); Serial.println(calc_num_of_leds);
 
@@ -99,7 +90,7 @@ void decode_data_of_leds(void) {
 
   for (int led = 0; led < NUM_OF_LEDS; led++) {
     uint32_t avg_value = 0;
-    
+
     for (int i = 0; i < CODE_LENGTH; i++) {
       uint32_t orthogonal_code_representation = encoders[led]->get_orthogonal_code()[i] * IDEAL_1_LED_ADC_VAL;
       uint32_t product = orthogonal_code_representation * read_values[i];
@@ -108,7 +99,7 @@ void decode_data_of_leds(void) {
     avg_value /= CODE_LENGTH;
 
 
-    
+
 
     uint8_t decoded_val = (avg_value / 10000) - (calc_num_of_leds - 1);
 
@@ -152,27 +143,37 @@ void decode_data_of_leds(void) {
 void setup() {
 
   randomSeed(analogRead(1));
-  
+
   for (uint8_t i = 0; i < NUM_OF_LEDS; i++) {
     pinMode(leds[i], OUTPUT);
     digitalWrite(leds[i], LOW);
   }
+
+  pinMode(leds[2], OUTPUT);
+  digitalWrite(leds[2], LOW);
 
   Serial.begin(115200);
   Serial.println("Begun");
 
   for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
     encoders[led] = new encoder(
-      hmg.get_code_matrix()[1 + led], 
-      CODE_LENGTH, 
-      led_data[led], 
+      hmg.get_code_matrix()[1 + led],
+      CODE_LENGTH,
+      led_data[led],
       DATA_LENGTH
     );
   }
-/*
-  clear_led_data();
-  randomize_led_data();
-*/
+
+
+  Serial.println("total codes per led: ");
+  for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+    for (int i = 0; i < CODE_LENGTH * DATA_LENGTH; i++) {
+      Serial.print(encoders[led]->get_next_encoded_bit());
+      Serial.print(" ");
+    }
+    Serial.println();
+  }
+  Serial.println();
 
   Serial.println("Each led data: ");
   for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
@@ -184,7 +185,7 @@ void setup() {
   }
   Serial.println();
 
-  
+
   Serial.println("Each led code: ");
   for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
     Serial.print("led"); Serial.print(led); Serial.print(": ");
@@ -193,7 +194,20 @@ void setup() {
     }
     Serial.println();
   }
-  
+
+
+  //d.black_list_code(1);
+
+  Serial.println("White listed: ");
+  for (uint8_t i = 0; i < CODE_LENGTH; i++) {
+    Serial.print(i); Serial.print(": "); Serial.println(d.is_code_white_listed(i));
+  }
+
+  Serial.println("Black listed: ");
+  for (uint8_t i = 0; i < CODE_LENGTH; i++) {
+    Serial.print(i); Serial.print(": "); Serial.println(d.is_code_black_listed(i));
+  }
+
   delay(1000);
 
   initializeTimer();
@@ -208,9 +222,38 @@ void loop() {
 
     //decode_num_of_leds();
 
-    for (int i = 0; i < CODE_LENGTH; i++) {
-      Serial.print(read_values[i]);
-      Serial.print(" ");
+  if (d.is_decoded_data_ready()) {
+    enable_timer = 0;
+
+    for (int i = 0; i < NUM_OF_LEDS; i++)
+      digitalWrite(leds[i], HIGH);
+
+    digitalWrite(leds[2], HIGH);
+
+    Serial.println("led data: ");
+    for (int i = 0; i < NUM_OF_LEDS; i++) {
+      Serial.print("LED"); Serial.print(i); Serial.print(": ");
+      for (int j = 0; j < DATA_LENGTH; j++) {
+        Serial.print(led_data[i][j]); Serial.print(" ");
+      }
+      Serial.println();
+    }
+    Serial.println();
+
+
+    uint8_t** t = d.get_decoded_led_data();
+
+    Serial.println("Decoded white listed led data: ");
+    for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+      uint8_t code_number = encoders[led]->get_code_number();
+      if (d.is_code_white_listed(code_number)) {
+        Serial.print("LED"); Serial.print(led); Serial.print(": ");
+        for (int j = 0; j < DATA_LENGTH; j++) {
+          Serial.print(t[code_number - 1][j]); Serial.print(" ");
+        }
+        Serial.println();
+      }
+
     }
     Serial.println();
 
@@ -233,9 +276,9 @@ void loop() {
         }
       }
 */
-      
+
       for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
-        Serial.print("Led "); Serial.print(led); Serial.print(": "); 
+        Serial.print("Led "); Serial.print(led); Serial.print(": ");
         for (uint8_t d = 0; d < DATA_LENGTH; d++) {
           Serial.print(decoded_led_data[led][d]);
           Serial.print(" ");
@@ -244,12 +287,12 @@ void loop() {
       }
       Serial.println();
       delay(2000);
-      
+
 
       //randomize_led_data();
     }
 
-    
+
     enableTimer = 1;
   }
 }
@@ -271,8 +314,10 @@ ISR(TIMER1_COMPA_vect) {
     for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
       digitalWrite(leds[led], encoders[led]->get_next_encoded_bit());
     }
+    
+    digitalWrite(leds[2], random(0, 2));
 
-    read_values[code_bit_counter] = clamp_measurements(analogRead(SENSOR_PIN));
-    code_bit_counter++;
+    d.measure();
+
   }
 }

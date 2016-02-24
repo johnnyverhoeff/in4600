@@ -1,7 +1,7 @@
 #include "hadamard_matrix_generator.h"
 
-#define START_CHIP 1
-#define CODE_LENGTH 8
+#define START_CHIP 0
+#define CODE_LENGTH 4
 
 hadamard_matrix_generator hmg(START_CHIP, CODE_LENGTH);
 
