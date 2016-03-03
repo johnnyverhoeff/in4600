@@ -12,13 +12,17 @@ class encoder {
 
 public:
   encoder(
-    uint8_t* orthogonal_code, const uint8_t code_length,
-    uint8_t* data, const uint8_t data_length
+    uint8_t** orthogonal_code_matrix,
+    uint8_t code_number,
+    const uint8_t code_length,
+    uint8_t* data,
+    const uint8_t data_length
   );
 
   uint8_t get_next_encoded_bit(void);
 
   const uint8_t get_code_length(void);
+  uint8_t get_code_number(void);
   uint8_t* get_orthogonal_code(void);
 
   const uint8_t get_data_length(void);
@@ -29,6 +33,7 @@ private:
   uint8_t _code_bit_position;
 
   uint8_t* _orthogonal_code;
+  uint8_t _code_number;
   const uint8_t _code_length;
 
   uint8_t* _data;

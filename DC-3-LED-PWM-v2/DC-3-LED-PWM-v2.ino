@@ -1,15 +1,12 @@
 #include "encoder.h"
 #include "hadamard_matrix_generator.h"
+#include "decoder.h"
 
 #define SENSOR_PIN A0
 #define NUM_OF_LEDS 2
 
 #define START_CHIP 0
-<<<<<<< Updated upstream
-#define CODE_LENGTH 4
-=======
-#define CODE_LENGTH 16
->>>>>>> Stashed changes
+#define CODE_LENGTH 8
 
 #define DATA_LENGTH 8
 
@@ -22,29 +19,16 @@ uint8_t led_data[NUM_OF_LEDS][DATA_LENGTH] = {
     /*{0},
     {0},
     {1}*/
-
   };
 
-uint8_t enableTimer = 0;
+uint8_t enable_timer = 0;
 
 hadamard_matrix_generator hmg(START_CHIP, CODE_LENGTH);
 
 encoder *encoders[NUM_OF_LEDS];
 
 
-
-
-#define IDEAL_1_LED_ADC_VAL 200
-#define MIN_1_LED_ADC_VAL 190
-#define MAX_1_LED_ADC_VAL 215
-
-
-uint8_t code_bit_counter = 0;
-uint8_t data_bit_counter = 0;
-
-uint16_t read_values[CODE_LENGTH];
-
-uint8_t decoded_led_data[NUM_OF_LEDS][DATA_LENGTH];
+decoder d(SENSOR_PIN, DATA_LENGTH, &hmg);
 
 void initializeTimer() {
 
@@ -67,82 +51,9 @@ void initializeTimer() {
   TIMSK1 |= (1 << OCIE1A);  // enable timer compare interrupt
   interrupts();             // enable all interrupts
 }
-
-uint8_t decode_num_of_leds(void) {
-  uint32_t sum = 0;
-  for (uint8_t i = 0; i < CODE_LENGTH; i++) {
-    sum += read_values[i];
-  }
-
-  /*Serial.print("Raw sum: "); Serial.println(sum);
-  Serial.print("sum / IDEAL_1_LED_ADC_VAL: "); Serial.println(sum / IDEAL_1_LED_ADC_VAL);
-  Serial.print("Calc. num_of_leds: "); Serial.println(sum / IDEAL_1_LED_ADC_VAL / (CODE_LENGTH / 2));*/
-
-  uint8_t calc_num_of_leds = sum / IDEAL_1_LED_ADC_VAL / (CODE_LENGTH / 2);
-  //Serial.print("Calc. num_of_leds: "); Serial.println(calc_num_of_leds);
-
-  return calc_num_of_leds;
-}
-
-void decode_data_of_leds(void) {
-
-  uint8_t calc_num_of_leds = decode_num_of_leds();
-
-  for (int led = 0; led < NUM_OF_LEDS; led++) {
-    uint32_t avg_value = 0;
-
-    for (int i = 0; i < CODE_LENGTH; i++) {
-      uint32_t orthogonal_code_representation = encoders[led]->get_orthogonal_code()[i] * IDEAL_1_LED_ADC_VAL;
-      uint32_t product = orthogonal_code_representation * read_values[i];
-      avg_value += product;
-    }
-    avg_value /= CODE_LENGTH;
-
-
-
-
-    uint8_t decoded_val = (avg_value / 10000) - (calc_num_of_leds - 1);
-
-    /*Serial.print("led"); Serial.print(led); Serial.print(": ");
-    Serial.println(avg_value);
-
-    Serial.print("Decoding: "); Serial.println(decoded_val);*/
-
-    uint8_t logical_val = 2; // 2 is unused val....
-
-    switch (decoded_val) {
-      case 0:
-        logical_val = 1;
-        break;
-      case 1:
-        logical_val = 2;
-        break;
-      case 2:
-        logical_val = 0;
-        break;
-    }
-
-    //Serial.print("Logical value: "); Serial.println(logical_val);
-
-    /*if (avg_value >= 19000 && avg_value <= 21000)
-      avg_value = 20000;
-    else if (avg_value >= 29000 && avg_value <= 31000)
-      avg_value = 30000;
-    else if (avg_value >= 39000 && avg_value <= 41000)
-      avg_value = 40000;
-
-    avg_value = ((avg_value / 200) % 200);
-
-    if (avg_value == 150) avg_value = 2;
-    else avg_value /= 100;*/
-
-    decoded_led_data[led][data_bit_counter] = logical_val;
-  }
-}
-
 void setup() {
 
-  randomSeed(analogRead(1));
+  randomSeed(analogRead(A1));
 
   for (uint8_t i = 0; i < NUM_OF_LEDS; i++) {
     pinMode(leds[i], OUTPUT);
@@ -157,13 +68,13 @@ void setup() {
 
   for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
     encoders[led] = new encoder(
-      hmg.get_code_matrix()[1 + led],
+      hmg.get_code_matrix(),
+      1 + led,
       CODE_LENGTH,
       led_data[led],
       DATA_LENGTH
     );
   }
-
 
   Serial.println("total codes per led: ");
   for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
@@ -195,8 +106,7 @@ void setup() {
     Serial.println();
   }
 
-
-  //d.black_list_code(1);
+  d.black_list_code(1);
 
   Serial.println("White listed: ");
   for (uint8_t i = 0; i < CODE_LENGTH; i++) {
@@ -212,23 +122,16 @@ void setup() {
 
   initializeTimer();
 
-  enableTimer = 1;
+  enable_timer = 1;
 }
 
 void loop() {
-  if (code_bit_counter >= CODE_LENGTH) {
-    enableTimer = 0;
-    code_bit_counter = 0;
-
-    //decode_num_of_leds();
 
   if (d.is_decoded_data_ready()) {
     enable_timer = 0;
 
     for (int i = 0; i < NUM_OF_LEDS; i++)
       digitalWrite(leds[i], HIGH);
-
-    digitalWrite(leds[2], HIGH);
 
     Serial.println("led data: ");
     for (int i = 0; i < NUM_OF_LEDS; i++) {
@@ -253,20 +156,25 @@ void loop() {
         }
         Serial.println();
       }
-
     }
     Serial.println();
 
-    decode_data_of_leds();
+    Serial.println("Decoded black listed led data: ");
+    for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+      uint8_t code_number = encoders[led]->get_code_number();
+      if (d.is_code_black_listed(code_number)) {
+        Serial.print("LED"); Serial.print(led); Serial.print(": ");
+        for (int j = 0; j < DATA_LENGTH; j++) {
+          Serial.print(t[code_number - 1][j]); Serial.print(" ");
+        }
+        Serial.println();
+      }
+    }
 
 
-    data_bit_counter++;
-    if (data_bit_counter >= DATA_LENGTH) {
-      data_bit_counter = 0;
-   /*
-      for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+    for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
         for (uint8_t data_bit = 0; data_bit < DATA_LENGTH; data_bit++) {
-          if (led_data[led][data_bit] != decoded_led_data[led][data_bit]) {
+          if (led_data[led][data_bit] != t[led][data_bit]) {
             Serial.print("Mismatch: ");
             Serial.print("LED: ");
             Serial.print(led);
@@ -275,25 +183,11 @@ void loop() {
           }
         }
       }
-*/
 
-      for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
-        Serial.print("Led "); Serial.print(led); Serial.print(": ");
-        for (uint8_t d = 0; d < DATA_LENGTH; d++) {
-          Serial.print(decoded_led_data[led][d]);
-          Serial.print(" ");
-        }
-        Serial.println();
-      }
-      Serial.println();
-      delay(2000);
+    //randomize_led_data();
 
-
-      //randomize_led_data();
-    }
-
-
-    enableTimer = 1;
+    delay(2000);
+    enable_timer = 1;
   }
 }
 
@@ -309,15 +203,14 @@ uint16_t clamp_measurements(uint16_t m) {
 
 ISR(TIMER1_COMPA_vect) {
   // timer compare interrupt service routine
-  if(enableTimer){
+  if(enable_timer){
 
     for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
       digitalWrite(leds[led], encoders[led]->get_next_encoded_bit());
     }
-    
-    digitalWrite(leds[2], random(0, 2));
+
+    //digitalWrite(leds[2], random(0, 2));
 
     d.measure();
-
   }
 }
