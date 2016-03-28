@@ -3,7 +3,7 @@
 #include "decoder.h"
 
 #define SENSOR_PIN A0
-#define NUM_OF_LEDS 2
+#define NUM_OF_LEDS 3
 
 #define START_CHIP 0
 #define CODE_LENGTH 8
@@ -13,8 +13,8 @@
 uint8_t leds[] = {3, 5, 6};
 uint8_t led_data[NUM_OF_LEDS][DATA_LENGTH] = {
 
-    //{0, 1, 0, 1, 0, 1, 0, 1},
-    {0, 0, 1, 1, 0, 0, 1, 1},
+    {0, 1, 0, 1, 0, 1, 0, 1},
+    {1, 0, 1, 1, 0, 0, 1, 1},
     {0, 0, 0, 0, 1, 1, 1, 1}
     /*{0},
     {0},
@@ -145,6 +145,8 @@ void loop() {
 
 
     uint8_t** t = d.get_decoded_led_data();
+
+    Serial.println("---------------------------------------");
 
     Serial.println("Decoded white listed led data: ");
     for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {

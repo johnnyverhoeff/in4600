@@ -85,27 +85,36 @@ uint8_t** decoder::get_decoded_led_data(void) {
 }
 
 void decoder::_decode_led_data(void) {
-  uint32_t sum_of_measured_vals = 0;
-  for (uint8_t val = 0; val < _hmg->get_code_length(); val++)
-    sum_of_measured_vals += _measured_data[val];
-
-  uint8_t calculated_num_of_leds = sum_of_measured_vals / IDEAL_1_LED_ADC_VAL / (_hmg->get_code_length() / 2);
 
   for (uint8_t code = 0; code < (_hmg->get_code_length() - 1); code++) {
-    uint32_t avg_val = 0;
 
+    int32_t correlation = 0;
+    
     for (uint8_t chip = 0; chip < _hmg->get_code_length(); chip++) {
-      uint32_t orthogonal_code_representation = _hmg->get_code_matrix()[code + 1][chip] * IDEAL_1_LED_ADC_VAL;
-      uint32_t product = orthogonal_code_representation * _measured_data[chip];
-      avg_val += product;
+
+      int8_t radio_rep = 1 - 2 * _hmg->get_code_matrix()[code + 1][chip];
+
+      int32_t corr_per_chip = ((int16_t)radio_rep * (int16_t)_measured_data[chip]);
+      correlation += corr_per_chip;
+     
     }
 
-    avg_val /= _hmg->get_code_length();
+    correlation = -2 * correlation / IDEAL_1_LED_ADC_VAL;
 
-    // TODO: figure out WHY 10000
-    int8_t encoded_val = (avg_val / 10000) - (calculated_num_of_leds - 1);
+    Serial.print("correlation: "); Serial.println(correlation);
 
-    _decoded_led_data[code][_data_bit_position] = _from_encoded_val_to_logical_val(encoded_val);
+    int8_t encoded_val = 2;
+    
+    if (correlation > (0.5 * _hmg->get_code_length()))
+      encoded_val = 0;
+    else if (correlation < (-0.5 * _hmg->get_code_length()))
+      encoded_val = 1;
+    else
+      encoded_val = 2;
+    
+    
+  
+    _decoded_led_data[code][_data_bit_position] = encoded_val;
   }
 
 }
