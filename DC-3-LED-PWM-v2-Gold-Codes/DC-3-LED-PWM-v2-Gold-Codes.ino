@@ -1,3 +1,5 @@
+#include <limits.h>
+
 
 #define SENSOR_PIN A0
 #define NUM_OF_TX 3
@@ -218,6 +220,30 @@ void print_seq(uint8_t *seq, uint16_t L) {
 
 
 
+int16_t find_min(int16_t *array, uint16_t length) {
+  int16_t min = SHRT_MAX;
+
+  for (uint16_t i = 0; i < length; i++) {
+    if (array[i] < min)
+      min = array[i];
+  }
+
+  return min;
+}
+
+int16_t find_max(int16_t *array, uint16_t length) {
+  int16_t max = SHRT_MIN;
+
+  for (uint16_t i = 0; i < length; i++) {
+    if (array[i] > max)
+      max = array[i];
+  }
+
+  return max;
+}
+
+
+
 float correlate_w_gold_seq(uint8_t gold_seq_idx) {
   float corr_sum = 0;
   float signal_sum = 0;
@@ -225,20 +251,22 @@ float correlate_w_gold_seq(uint8_t gold_seq_idx) {
   uint8_t *gold_seq = new uint8_t[L];
   gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[gold_seq_idx], gold_seq);
 
+  int16_t min_signal = find_min(measured_values, L);
+  int16_t max_signal = find_max(measured_values, L);
 
   for (uint16_t i = 0; i < L; i++) {
-    float r = 1 - 2 * ((int8_t)gold_seq[i]);
+    float r_chip = 1 - 2 * ((int8_t)gold_seq[i]);
 
-    float m = measured_values[i] / AMPLITUDE;
+    float scaled_measurement = (measured_values[i] - min_signal) / AMPLITUDE;
 
-    signal_sum += m;
+    signal_sum += scaled_measurement;
 
-    corr_sum += (m * r);
+    corr_sum += (scaled_measurement * r_chip);
   }
 
-  float calc_num_of_tx = (signal_sum / (1 << (n - 1))) / AMPLITUDE;
+  float calc_num_of_tx = signal_sum / (1 << (n - 1));
 
-  float correlation = (-2 * corr_sum) - calc_num_of_tx * (1 + 2 * AMPLITUDE);
+  float correlation = (-2 * corr_sum) - calc_num_of_tx;
 
   delete gold_seq;
 
@@ -279,6 +307,11 @@ void setup() {
 
   start_ptr = 0;
   end_ptr = 0;
+
+  for (uint8_t i = 0; i < NUM_OF_TX; i++) {
+    digitalWrite(leds[i], HIGH);
+    tx_status[i] = 0;
+  }
    
 
 }
@@ -289,7 +322,7 @@ void setup() {
 void loop() {
   
 
-  for (uint8_t i = 0; i < NUM_OF_TX; i++) {
+  for (uint8_t i = 0; i < (NUM_OF_TX - 2); i++) {
     long p = random(0, 100);
 
     if (p < 50)   
@@ -300,7 +333,7 @@ void loop() {
 
 
   for (uint8_t chip = 0; chip < L; chip++) {
-    for (uint8_t i = 0; i < ( NUM_OF_TX - 0); i++) {
+    for (uint8_t i = 0; i < (NUM_OF_TX - 2); i++) {
       if (tx_status[i] == 1) {
         
         digitalWrite(leds[i], tx_codes[i][chip]);
@@ -323,7 +356,7 @@ void loop() {
     //delayMicroseconds(10);
   }
 
-  for (uint8_t i = 0; i < ( NUM_OF_TX - 0); i++) {
+  for (uint8_t i = 0; i < NUM_OF_TX; i++) {
     digitalWrite(leds[i], HIGH);
   }
 
