@@ -13,23 +13,23 @@ uint16_t iptr;
 
 uint8_t leds[] = {3, 5, 6};
 
-uint8_t *tx_decode_status = new uint8_t[NUM_OF_TX];
-uint8_t *tx_status        = new uint8_t[NUM_OF_TX];
-uint16_t *tx_timestamp     = new uint16_t[NUM_OF_TX];
-uint16_t *tx_detected = new uint16_t[NUM_OF_TX];
+uint8_t *tx_decode_status   = new uint8_t[NUM_OF_TX];
+uint8_t *tx_status          = new uint8_t[NUM_OF_TX];
+uint32_t *tx_timestamp      = new uint32_t[NUM_OF_TX];
+uint32_t *tx_detected       = new uint32_t[NUM_OF_TX];
 
-uint16_t all_detected_timestamp = 0;
+uint32_t all_detected_timestamp = 0;
 
-uint16_t time;
+uint32_t time;
 
-float p = 0.0058;
+float p = 0.01;
 //float p = 0.1;
 
 
-uint16_t fp = 0;
-uint16_t fn = 0;
-uint16_t tp = 0;
-uint16_t tn = 0;
+uint32_t fp = 0;
+uint32_t fn = 0;
+uint32_t tp = 0;
+uint32_t tn = 0;
 
 uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
 uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
@@ -508,12 +508,17 @@ void loop() {
   }
 
   if (all_detected == 1) {
-    all_detected_timestamp = time - all_detected_timestamp;
+    
+
     Serial.println("***********************************");
-    Serial.print("All tx detected after: "); Serial.println(all_detected_timestamp);
+    Serial.print("All tx detected after: "); Serial.println(time - all_detected_timestamp);
     Serial.println("***********************************");
-    Serial.print("F-measure: "); Serial.println(2*tp / (2*tp + fp + fn));
+    float f_measure = 2 * ((float)tp) / (2 * ((float)tp) + (float)fp + (float)fn);
+    Serial.print("F-measure: "); Serial.println(f_measure);
     Serial.println("***********************************");
+
+    all_detected_timestamp = time;
+
     for (uint8_t i = 0; i < NUM_OF_TX; i++) {
       tx_detected[i] = 0;
     }
