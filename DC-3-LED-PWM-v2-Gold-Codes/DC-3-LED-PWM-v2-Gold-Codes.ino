@@ -9,19 +9,33 @@
 uint8_t **tx_codes;
 
 int16_t *measured_values;
-uint8_t start_ptr;
-uint8_t end_ptr;
+uint16_t iptr;
 
 uint8_t leds[] = {3, 5, 6};
 
 uint8_t *tx_decode_status = new uint8_t[NUM_OF_TX];
 uint8_t *tx_status        = new uint8_t[NUM_OF_TX];
+uint16_t *tx_timestamp     = new uint16_t[NUM_OF_TX];
+uint16_t *tx_detected = new uint16_t[NUM_OF_TX];
+
+uint16_t all_detected_timestamp = 0;
+
+uint16_t time;
+
+float p = 0.0058;
+//float p = 0.1;
 
 
-//uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
+uint16_t fp = 0;
+uint16_t fn = 0;
+uint16_t tp = 0;
+uint16_t tn = 0;
 
-uint8_t poly[] = {1, 0, 0, 0, 0, 1, 1}; // x^6 + x + 1
-uint8_t poly2[] = {1, 1, 0, 0, 1, 1, 1}; // x^6 + x^5 + x^2 + x + 1
+uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
+uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
+
+//uint8_t poly[] = {1, 0, 0, 0, 0, 1, 1}; // x^6 + x + 1
+//uint8_t poly2[] = {1, 1, 0, 0, 1, 1, 1}; // x^6 + x^5 + x^2 + x + 1
 
 //uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
 //uint8_t poly2[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x + 1
@@ -244,6 +258,11 @@ int16_t find_max(int16_t *array, uint16_t length) {
 
 
 
+
+
+
+
+
 float correlate_w_gold_seq(uint8_t gold_seq_idx) {
   float corr_sum = 0;
   float signal_sum = 0;
@@ -254,10 +273,17 @@ float correlate_w_gold_seq(uint8_t gold_seq_idx) {
   int16_t min_signal = find_min(measured_values, L);
   int16_t max_signal = find_max(measured_values, L);
 
-  for (uint16_t i = 0; i < L; i++) {
-    float r_chip = 1 - 2 * ((int8_t)gold_seq[i]);
+  uint16_t begin = iptr;
+  uint16_t end   = iptr + L;
 
-    float scaled_measurement = (measured_values[i] - min_signal) / AMPLITUDE;
+
+  uint16_t code_i = 0;
+
+  for (uint16_t i = begin; i < end; i++) {
+    uint16_t idx = i % L;
+    float r_chip = 1 - 2 * ((int8_t)gold_seq[code_i++]);
+
+    float scaled_measurement = (measured_values[idx] - min_signal) / AMPLITUDE;
 
     signal_sum += scaled_measurement;
 
@@ -273,7 +299,7 @@ float correlate_w_gold_seq(uint8_t gold_seq_idx) {
   return correlation / L;
 }
 
-
+ 
 
 
 
@@ -289,11 +315,16 @@ void setup() {
   calc_balanced_gold_codes_idx(poly, poly2, n, num_of_balanced_gold_seq, balanced_gold_seq_start_states);
 
 
+  time = 0;
 
 
   tx_codes = new uint8_t*[NUM_OF_TX];
   for (uint8_t i = 0; i < NUM_OF_TX; i++) {
+
     tx_codes[i] = new uint8_t[L];
+    tx_timestamp[i] = 0;
+    tx_detected[i] = 0;
+
 
     pinMode(leds[i], OUTPUT);
     digitalWrite(leds[i], LOW);
@@ -305,8 +336,7 @@ void setup() {
 
 
 
-  start_ptr = 0;
-  end_ptr = 0;
+  iptr = 0;
 
   for (uint8_t i = 0; i < NUM_OF_TX; i++) {
     digitalWrite(leds[i], HIGH);
@@ -314,26 +344,39 @@ void setup() {
   }
    
 
+
+  /*for (int i = 0; i < L; i++) {
+    measured_values[i] = (int16_t) AMPLITUDE * tx_codes[0][i];
+  }*/
+
+  
+
+  Serial.println("TP TX, TIME: (status, decode_status, corr*L, tx_timestamp)");
+
 }
 
 
-
+uint8_t enough_measurements = 0;
 
 void loop() {
   
 
-  for (uint8_t i = 0; i < (NUM_OF_TX - 2); i++) {
-    long p = random(0, 100);
+  for (uint8_t i = 0; i < (NUM_OF_TX - 0); i++) {
+    if (tx_timestamp[i] - time >= L) {
+      long r = random(0, 100);
 
-    if (p < 50)   
-      tx_status[i] = 1;
-    else 
-      tx_status[i] = 0;
+      if (r < (p * 100.0)) {   
+        tx_status[i] = 1;
+        tx_timestamp[i] = time;
+      } else { 
+        tx_status[i] = 0;
+      }
+    }
   }
 
 
   for (uint8_t chip = 0; chip < L; chip++) {
-    for (uint8_t i = 0; i < (NUM_OF_TX - 2); i++) {
+    for (uint8_t i = 0; i < (NUM_OF_TX - 0); i++) {
       if (tx_status[i] == 1) {
         
         digitalWrite(leds[i], tx_codes[i][chip]);
@@ -346,46 +389,141 @@ void loop() {
 
 
       } else {
-        digitalWrite(leds[i], HIGH);
+        digitalWrite(leds[i], HIGH); 
       }
     }
 
-    measured_values[end_ptr++] = analogRead(SENSOR_PIN);
+    measured_values[iptr++] = analogRead(SENSOR_PIN);
+    //iptr++;
+
+    if (iptr >= L) {
+      enough_measurements = 1;
+      iptr = 0;
+    }
+
+    if (enough_measurements) {
+
+      uint8_t note_worthy_msg;
+
+      for (uint8_t i = 0; i < NUM_OF_TX; i++) {
+
+        float corr = correlate_w_gold_seq(i);
+        uint8_t status  = (corr >= 0.5) ? 1 : 0;
+
+        if (i < NUM_OF_TX) {
+          tx_decode_status[i] = status;
+        }
+
+        
+
+        note_worthy_msg = 0;
+
+        if (time == (L + tx_timestamp[i] - 1)) { // correct time to decode result
+          if (tx_status[i] == 1) {
+            if (tx_decode_status[i] == 0) {
+              Serial.print("FN");
+              fn++;
+              note_worthy_msg = 1;
+            } else {
+              Serial.print("TP");
+              tp++;
+              note_worthy_msg = 1;
+              tx_detected[i] = 1;
+            }
+          } else {
+            if (tx_decode_status[i] == 0) {
+              //Serial.print("TN");
+              tn++;
+            } else {
+              Serial.print("FP");
+              fp++;
+              note_worthy_msg = 1;
+            }
+          } 
+        } else {
+          if (tx_status[i] == 1) { // busy modulating
+            if (tx_decode_status[i] == 0) {
+              // ok still busy modulating
+              tn++;
+              //Serial.print("TN");
+            } else {
+              // not ok because still busy modulating so should not be high
+              fp++;
+              Serial.print("FP");
+              note_worthy_msg = 1;
+            }
+          } else {
+            if (tx_decode_status[i] == 0) {
+              // ok should be off
+              tn++;
+              //Serial.print("TN");
+            } else {
+              // not ok because not modulating so should not be high
+              fp++;
+              Serial.print("FP");
+              note_worthy_msg = 1;
+            }
+          }
+        }
+
+        if (note_worthy_msg == 1) {
+          Serial.print(" ");
+          Serial.print(i);
+          Serial.print(", ");
+          Serial.print(time);
+          Serial.print(": ");
+          Serial.print( "(" ); 
+          Serial.print(tx_status[i]); 
+          Serial.print(", ");
+          Serial.print(tx_decode_status[i]);
+          Serial.print(", ");
+          Serial.print(corr * L);
+          Serial.print(", ");
+          Serial.print(tx_timestamp[i]);
+          Serial.print(")");
+
+          Serial.println();
+        }
+
+
+      }
+
+
+      //delay(100);
+    }
+    
 
 
     //delayMicroseconds(10);
+    time++;
   }
+
+
+  uint8_t all_detected = 1;
 
   for (uint8_t i = 0; i < NUM_OF_TX; i++) {
     digitalWrite(leds[i], HIGH);
+
+    all_detected  &= tx_detected[i];
   }
 
-
-  for (uint8_t i = 0; i < NUM_OF_TX; i++) {
-    float corr = correlate_w_gold_seq(i);
-    uint8_t status  = corr > ((float)(1 / 2)) ? 1 : 0;
-
-    if (i < NUM_OF_TX) {
-      tx_decode_status[i] = status;
+  if (all_detected == 1) {
+    all_detected_timestamp = time - all_detected_timestamp;
+    Serial.println("***********************************");
+    Serial.print("All tx detected after: "); Serial.println(all_detected_timestamp);
+    Serial.println("***********************************");
+    Serial.print("F-measure: "); Serial.println(2*tp / (2*tp + fp + fn));
+    Serial.println("***********************************");
+    for (uint8_t i = 0; i < NUM_OF_TX; i++) {
+      tx_detected[i] = 0;
     }
-
-    Serial.print( "(" ); 
-    Serial.print(tx_status[i]); 
-    Serial.print(", ");
-    Serial.print(tx_decode_status[i]);
-    Serial.print(", ");
-    Serial.print(corr * L);
-    Serial.print("), ");
-
-    if (tx_status[i] != tx_decode_status[i])
-      Serial.println("PANIC");
   }
 
-  Serial.println();
 
 
-  end_ptr = 0;
-  delay(1000);
+  
+
+  
 
 
 }
