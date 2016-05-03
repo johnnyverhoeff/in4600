@@ -1,8 +1,12 @@
 #include <limits.h>
 
 
-#define SENSOR_PIN A0
-#define NUM_OF_TX 3
+#define SENSOR_PIN_0 A0
+#define SENSOR_PIN_1 A1
+#define RANDOM_SEED A2
+#define NUM_OF_TX 6
+
+#define LARGE_INT_NUMBER 10000
 
 #define AMPLITUDE 200
 
@@ -11,19 +15,20 @@ uint8_t **tx_codes;
 int16_t *measured_values;
 uint16_t iptr;
 
-uint8_t leds[] = {3, 5, 6};
+uint8_t leds[] = {3, 5, 6, 8, 9, 10};
 
 uint8_t *tx_decode_status   = new uint8_t[NUM_OF_TX];
 uint8_t *tx_status          = new uint8_t[NUM_OF_TX];
 uint32_t *tx_timestamp      = new uint32_t[NUM_OF_TX];
 uint32_t *tx_detected       = new uint32_t[NUM_OF_TX];
+uint32_t *tx_k              = new uint32_t[NUM_OF_TX];
 
 uint32_t all_detected_timestamp = 0;
 
 uint32_t time;
 
-float p = 0.01;
-//float p = 0.1;
+//float p = 0.008;
+float p = 0.03;
 
 
 uint32_t fp = 0;
@@ -31,11 +36,11 @@ uint32_t fn = 0;
 uint32_t tp = 0;
 uint32_t tn = 0;
 
-uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
-uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
+//uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
+//uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
 
-//uint8_t poly[] = {1, 0, 0, 0, 0, 1, 1}; // x^6 + x + 1
-//uint8_t poly2[] = {1, 1, 0, 0, 1, 1, 1}; // x^6 + x^5 + x^2 + x + 1
+uint8_t poly[] = {1, 0, 0, 0, 0, 1, 1}; // x^6 + x + 1
+uint8_t poly2[] = {1, 1, 0, 0, 1, 1, 1}; // x^6 + x^5 + x^2 + x + 1
 
 //uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
 //uint8_t poly2[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x + 1
@@ -309,7 +314,7 @@ void setup() {
 
   Serial.begin(115200); 
 
-  randomSeed(analogRead(A1));
+  randomSeed(analogRead(RANDOM_SEED));
 
   
   calc_balanced_gold_codes_idx(poly, poly2, n, num_of_balanced_gold_seq, balanced_gold_seq_start_states);
@@ -324,6 +329,7 @@ void setup() {
     tx_codes[i] = new uint8_t[L];
     tx_timestamp[i] = 0;
     tx_detected[i] = 0;
+    tx_k[i] = 0;
 
 
     pinMode(leds[i], OUTPUT);
@@ -363,9 +369,13 @@ void loop() {
 
   for (uint8_t i = 0; i < (NUM_OF_TX - 0); i++) {
     if (tx_timestamp[i] - time >= L) {
-      long r = random(0, 100);
 
-      if (r < (p * 100.0)) {   
+      tx_k[i]++;
+
+      long r = random(0, 10000);
+      float random = ((float) r) / 10000.0;
+
+      if (random < p) {   
         tx_status[i] = 1;
         tx_timestamp[i] = time;
       } else { 
@@ -393,7 +403,7 @@ void loop() {
       }
     }
 
-    measured_values[iptr++] = analogRead(SENSOR_PIN);
+    measured_values[iptr++] = analogRead(SENSOR_PIN_0) + analogRead(SENSOR_PIN_1);
     //iptr++;
 
     if (iptr >= L) {
@@ -421,11 +431,11 @@ void loop() {
         if (time == (L + tx_timestamp[i] - 1)) { // correct time to decode result
           if (tx_status[i] == 1) {
             if (tx_decode_status[i] == 0) {
-              Serial.print("FN");
+              Serial.print("*FN*");
               fn++;
               note_worthy_msg = 1;
             } else {
-              Serial.print("TP");
+              Serial.print(" TP ");
               tp++;
               note_worthy_msg = 1;
               tx_detected[i] = 1;
@@ -435,7 +445,7 @@ void loop() {
               //Serial.print("TN");
               tn++;
             } else {
-              Serial.print("FP");
+              Serial.print("*FP*");
               fp++;
               note_worthy_msg = 1;
             }
@@ -449,7 +459,7 @@ void loop() {
             } else {
               // not ok because still busy modulating so should not be high
               fp++;
-              Serial.print("FP");
+              Serial.print("*FP*");
               note_worthy_msg = 1;
             }
           } else {
@@ -460,7 +470,7 @@ void loop() {
             } else {
               // not ok because not modulating so should not be high
               fp++;
-              Serial.print("FP");
+              Serial.print("*FP*");
               note_worthy_msg = 1;
             }
           }
@@ -510,18 +520,22 @@ void loop() {
   if (all_detected == 1) {
     
 
-    Serial.println("***********************************");
-    Serial.print("All tx detected after: "); Serial.println(time - all_detected_timestamp);
-    Serial.println("***********************************");
+    Serial.println("      ***********************************");
+    Serial.print("      All tx detected after: "); Serial.println(time - all_detected_timestamp);
+    Serial.println("      ***********************************");
     float f_measure = 2 * ((float)tp) / (2 * ((float)tp) + (float)fp + (float)fn);
-    Serial.print("F-measure: "); Serial.println(f_measure);
-    Serial.println("***********************************");
-
+    Serial.print("      F-measure: "); Serial.println(f_measure);
+    Serial.println("      ***********************************");
+    Serial.print  ("      ");
     all_detected_timestamp = time;
 
     for (uint8_t i = 0; i < NUM_OF_TX; i++) {
       tx_detected[i] = 0;
+      Serial.print(i);Serial.print(": ");Serial.print(tx_k[i]);Serial.print(", ");
+      tx_k[i] = 0;
     }
+    Serial.println();
+    Serial.println("      ***********************************");
   }
 
 
