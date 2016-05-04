@@ -10,8 +10,6 @@
 
 #define AMPLITUDE 200
 
-uint8_t **tx_codes;
-
 int16_t *measured_values;
 uint16_t iptr;
 
@@ -27,8 +25,7 @@ uint32_t all_detected_timestamp = 0;
 
 uint32_t time;
 
-//float p = 0.008;
-float p = 0.03;
+float p = 0.0289;
 
 
 uint32_t fp = 0;
@@ -39,11 +36,11 @@ uint32_t tn = 0;
 //uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
 //uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
 
-uint8_t poly[] = {1, 0, 0, 0, 0, 1, 1}; // x^6 + x + 1
-uint8_t poly2[] = {1, 1, 0, 0, 1, 1, 1}; // x^6 + x^5 + x^2 + x + 1
+//uint8_t poly[] = {1, 0, 0, 0, 0, 1, 1}; // x^6 + x + 1
+//uint8_t poly2[] = {1, 1, 0, 0, 1, 1, 1}; // x^6 + x^5 + x^2 + x + 1
 
-//uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
-//uint8_t poly2[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x + 1
+uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
+uint8_t poly2[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x + 1
 
 //uint8_t poly[] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 1}; // x^9 + x^4 + 1
 //uint8_t poly2[] = {1, 0, 0, 1, 0, 1, 1, 0, 0, 1}; // x^9 + x^6 + x^4 + x^3 + 1
@@ -322,11 +319,8 @@ void setup() {
 
   time = 0;
 
-
-  tx_codes = new uint8_t*[NUM_OF_TX];
   for (uint8_t i = 0; i < NUM_OF_TX; i++) {
 
-    tx_codes[i] = new uint8_t[L];
     tx_timestamp[i] = 0;
     tx_detected[i] = 0;
     tx_k[i] = 0;
@@ -334,8 +328,6 @@ void setup() {
 
     pinMode(leds[i], OUTPUT);
     digitalWrite(leds[i], LOW);
-
-    gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[i], tx_codes[i]);
   }
 
   measured_values = new int16_t[L];
@@ -348,17 +340,8 @@ void setup() {
     digitalWrite(leds[i], HIGH);
     tx_status[i] = 0;
   }
-   
-
-
-  /*for (int i = 0; i < L; i++) {
-    measured_values[i] = (int16_t) AMPLITUDE * tx_codes[0][i];
-  }*/
-
-  
 
   Serial.println("TP TX, TIME: (status, decode_status, corr*L, tx_timestamp)");
-
 }
 
 
@@ -389,7 +372,14 @@ void loop() {
     for (uint8_t i = 0; i < (NUM_OF_TX - 0); i++) {
       if (tx_status[i] == 1) {
         
-        digitalWrite(leds[i], tx_codes[i][chip]);
+
+        uint8_t *current_gold_seq = new uint8_t[L];
+        gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[i], current_gold_seq);
+
+
+        digitalWrite(leds[i], current_gold_seq[chip]);
+
+        delete current_gold_seq;
 
         /*if (tx_codes[i][chip] == 1) {
           PORTD |= (1 << leds[i]);
@@ -404,7 +394,6 @@ void loop() {
     }
 
     measured_values[iptr++] = analogRead(SENSOR_PIN_0) + analogRead(SENSOR_PIN_1);
-    //iptr++;
 
     if (iptr >= L) {
       enough_measurements = 1;
@@ -415,7 +404,7 @@ void loop() {
 
       uint8_t note_worthy_msg;
 
-      for (uint8_t i = 0; i < NUM_OF_TX; i++) {
+      for (uint8_t i = 0; i < /*num_of_balanced_gold_seq*/ NUM_OF_TX; i++) {
 
         float corr = correlate_w_gold_seq(i);
         uint8_t status  = (corr >= 0.5) ? 1 : 0;
@@ -423,8 +412,6 @@ void loop() {
         if (i < NUM_OF_TX) {
           tx_decode_status[i] = status;
         }
-
-        
 
         note_worthy_msg = 0;
 
@@ -475,6 +462,16 @@ void loop() {
             }
           }
         }
+
+        /*} else {
+          if (status == 1) {
+            fp++;
+            //note_worthy_msg = 1;
+            Serial.print("*FP*");
+          } else {
+            tn++;
+          }
+        }*/
 
         if (note_worthy_msg == 1) {
           Serial.print(" ");
@@ -537,12 +534,6 @@ void loop() {
     Serial.println();
     Serial.println("      ***********************************");
   }
-
-
-
-  
-
-  
 
 
 }
