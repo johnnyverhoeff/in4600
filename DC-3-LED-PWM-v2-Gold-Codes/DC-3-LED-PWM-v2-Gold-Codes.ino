@@ -25,7 +25,12 @@ uint32_t all_detected_timestamp = 0;
 
 uint32_t time;
 
-float p = 0.0289;
+float p = /*0.0289*/ 0.05; // Prob. that tx will tx_status.
+
+float epsilon = 0.1; // 1 - Prob. that a tx has tx'ed atleast 1 time.
+
+float k = log(epsilon) / log(1 - p);
+uint8_t k_msg = 0;
 
 
 uint32_t fp = 0;
@@ -341,6 +346,9 @@ void setup() {
     tx_status[i] = 0;
   }
 
+  Serial.print("k: ");
+  Serial.println(k);
+
   Serial.println("TP TX, TIME: (status, decode_status, corr*L, tx_timestamp)");
 }
 
@@ -354,6 +362,13 @@ void loop() {
     if (tx_timestamp[i] - time >= L) {
 
       tx_k[i]++;
+
+      if (tx_k[i] >= (uint16_t)k) {
+        if (!k_msg) {
+          Serial.println("***** K reached *****");
+          k_msg = 1;
+        }
+      }
 
       long r = random(0, 10000);
       float random = ((float) r) / 10000.0;
@@ -530,6 +545,7 @@ void loop() {
       tx_detected[i] = 0;
       Serial.print(i);Serial.print(": ");Serial.print(tx_k[i]);Serial.print(", ");
       tx_k[i] = 0;
+      k_msg = 0;
     }
     Serial.println();
     Serial.println("      ***********************************");
