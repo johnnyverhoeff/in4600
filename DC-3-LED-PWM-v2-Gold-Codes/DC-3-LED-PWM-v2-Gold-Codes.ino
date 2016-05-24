@@ -8,7 +8,7 @@
 
 #define LARGE_INT_NUMBER 10000
 
-#define AMPLITUDE 200
+#define AMPLITUDE 295
 
 int16_t *measured_values;
 uint16_t iptr;
@@ -21,11 +21,13 @@ uint32_t *tx_timestamp      = new uint32_t[NUM_OF_TX];
 uint32_t *tx_detected       = new uint32_t[NUM_OF_TX];
 uint32_t *tx_k              = new uint32_t[NUM_OF_TX];
 
+uint8_t **tx_code;
+
 uint32_t all_detected_timestamp = 0;
 
-uint32_t time;
+uint32_t time_time;
 
-float p = /*0.0289*/ 0.05; // Prob. that tx will tx_status.
+float p = 0.0008;//0.0289;// 0.05; // Prob. that tx will tx_status.
 
 float epsilon = 0.1; // 1 - Prob. that a tx has tx'ed atleast 1 time.
 
@@ -38,14 +40,14 @@ uint32_t fn = 0;
 uint32_t tp = 0;
 uint32_t tn = 0;
 
-//uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
-//uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
+uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
+uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
 
 //uint8_t poly[] = {1, 0, 0, 0, 0, 1, 1}; // x^6 + x + 1
 //uint8_t poly2[] = {1, 1, 0, 0, 1, 1, 1}; // x^6 + x^5 + x^2 + x + 1
 
-uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
-uint8_t poly2[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x + 1
+//uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
+//uint8_t poly2[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x + 1
 
 //uint8_t poly[] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 1}; // x^9 + x^4 + 1
 //uint8_t poly2[] = {1, 0, 0, 1, 0, 1, 1, 0, 0, 1}; // x^9 + x^6 + x^4 + x^3 + 1
@@ -274,8 +276,8 @@ float correlate_w_gold_seq(uint8_t gold_seq_idx) {
   float corr_sum = 0;
   float signal_sum = 0;
 
-  uint8_t *gold_seq = new uint8_t[L];
-  gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[gold_seq_idx], gold_seq);
+  //uint8_t *gold_seq = new uint8_t[L];
+  //gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[gold_seq_idx], gold_seq);
 
   int16_t min_signal = find_min(measured_values, L);
   int16_t max_signal = find_max(measured_values, L);
@@ -288,7 +290,7 @@ float correlate_w_gold_seq(uint8_t gold_seq_idx) {
 
   for (uint16_t i = begin; i < end; i++) {
     uint16_t idx = i % L;
-    float r_chip = 1 - 2 * ((int8_t)gold_seq[code_i++]);
+    float r_chip = 1 - 2 * ((int8_t)tx_code[gold_seq_idx][code_i++]);
 
     float scaled_measurement = (measured_values[idx] - min_signal) / AMPLITUDE;
 
@@ -301,7 +303,7 @@ float correlate_w_gold_seq(uint8_t gold_seq_idx) {
 
   float correlation = (-2 * corr_sum) - calc_num_of_tx;
 
-  delete gold_seq;
+  //delete gold_seq;
 
   return correlation / L;
 }
@@ -321,11 +323,15 @@ void setup() {
   
   calc_balanced_gold_codes_idx(poly, poly2, n, num_of_balanced_gold_seq, balanced_gold_seq_start_states);
 
+  tx_code = new uint8_t*[NUM_OF_TX];
 
-  time = 0;
+  time_time = 0;
 
   for (uint8_t i = 0; i < NUM_OF_TX; i++) {
 
+    tx_code[i] = new uint8_t[L];
+    gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[i], tx_code[i]);
+    
     tx_timestamp[i] = 0;
     tx_detected[i] = 0;
     tx_k[i] = 0;
@@ -359,7 +365,7 @@ void loop() {
   
 
   for (uint8_t i = 0; i < (NUM_OF_TX - 0); i++) {
-    if (tx_timestamp[i] - time >= L) {
+    if (tx_timestamp[i] - time_time >= L) {
 
       tx_k[i]++;
 
@@ -375,7 +381,7 @@ void loop() {
 
       if (random < p) {   
         tx_status[i] = 1;
-        tx_timestamp[i] = time;
+        tx_timestamp[i] = time_time;
       } else { 
         tx_status[i] = 0;
       }
@@ -388,13 +394,18 @@ void loop() {
       if (tx_status[i] == 1) {
         
 
-        uint8_t *current_gold_seq = new uint8_t[L];
-        gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[i], current_gold_seq);
+        //long start_time___ = micros();
+        
+        /*uint8_t *current_gold_seq = new uint8_t[L];
+        gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[i], current_gold_seq);*/
 
 
-        digitalWrite(leds[i], current_gold_seq[chip]);
+        
 
-        delete current_gold_seq;
+        digitalWrite(leds[i], /*current_gold_seq[chip]*/  tx_code[i][chip]);
+
+        //Serial.println(micros() - start_time___);
+        /*delete current_gold_seq;*/
 
         /*if (tx_codes[i][chip] == 1) {
           PORTD |= (1 << leds[i]);
@@ -430,7 +441,7 @@ void loop() {
 
         note_worthy_msg = 0;
 
-        if (time == (L + tx_timestamp[i] - 1)) { // correct time to decode result
+        if (time_time == (L + tx_timestamp[i] - 1)) { // correct time to decode result
           if (tx_status[i] == 1) {
             if (tx_decode_status[i] == 0) {
               Serial.print("*FN*");
@@ -492,7 +503,7 @@ void loop() {
           Serial.print(" ");
           Serial.print(i);
           Serial.print(", ");
-          Serial.print(time);
+          Serial.print(time_time);
           Serial.print(": ");
           Serial.print( "(" ); 
           Serial.print(tx_status[i]); 
@@ -517,7 +528,7 @@ void loop() {
 
 
     //delayMicroseconds(10);
-    time++;
+    time_time++;
   }
 
 
@@ -533,13 +544,13 @@ void loop() {
     
 
     Serial.println("      ***********************************");
-    Serial.print("      All tx detected after: "); Serial.println(time - all_detected_timestamp);
+    Serial.print("      All tx detected after: "); Serial.println(time_time - all_detected_timestamp);
     Serial.println("      ***********************************");
     float f_measure = 2 * ((float)tp) / (2 * ((float)tp) + (float)fp + (float)fn);
     Serial.print("      F-measure: "); Serial.println(f_measure);
     Serial.println("      ***********************************");
     Serial.print  ("      ");
-    all_detected_timestamp = time;
+    all_detected_timestamp = time_time;
 
     for (uint8_t i = 0; i < NUM_OF_TX; i++) {
       tx_detected[i] = 0;
