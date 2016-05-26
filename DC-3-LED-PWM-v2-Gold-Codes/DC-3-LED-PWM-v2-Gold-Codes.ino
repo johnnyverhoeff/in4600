@@ -6,7 +6,7 @@
 #define RANDOM_SEED A2
 
 #define NUM_OF_TX 6
-#define NUM_OF_ACTIVE_TX NUM_OF_TX 
+#define NUM_OF_ACTIVE_TX 6 
 
 #define LARGE_INT_NUMBER 10000
 
@@ -30,7 +30,7 @@ uint32_t all_detected_timestamp = 0;
 
 uint32_t time_time;
 
-float p = 0.008;//0.0289;// 0.05; // Prob. that tx will tx_status.
+float p = 0.99;//0.0289;// 0.05; // Prob. that tx will tx_status.
 
 float epsilon = 0.1; // 1 - Prob. that a tx has tx'ed atleast 1 time.
 
@@ -49,11 +49,11 @@ uint32_t tn = 0;
 //uint8_t poly[] = {1, 0, 0, 0, 0, 1, 1}; // x^6 + x + 1
 //uint8_t poly2[] = {1, 1, 0, 0, 1, 1, 1}; // x^6 + x^5 + x^2 + x + 1
 
-uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
-uint8_t poly2[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x + 1
+//uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
+//uint8_t poly2[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x + 1
 
-//uint8_t poly[] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 1}; // x^9 + x^4 + 1
-//uint8_t poly2[] = {1, 0, 0, 1, 0, 1, 1, 0, 0, 1}; // x^9 + x^6 + x^4 + x^3 + 1
+uint8_t poly[] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 1}; // x^9 + x^4 + 1
+uint8_t poly2[] = {1, 0, 0, 1, 0, 1, 1, 0, 0, 1}; // x^9 + x^6 + x^4 + x^3 + 1
 
 
 //uint8_t poly[] = {1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1}; // x^10 + x^2 + 1
@@ -375,6 +375,14 @@ void loop() {
       if (tx_k[i] >= (uint16_t)k) {
         if (!k_msg) {
           Serial.println("***** K reached *****");
+          Serial.print  ("***** TX's that tx'ed: ");
+          for (uint8_t j = 0; j < NUM_OF_ACTIVE_TX; j++) {
+            if (tx_detected[j])
+              Serial.print(j);
+            Serial.print(" ");
+          }
+          Serial.println("*****");
+          
           k_msg = 1;
         }
       }
