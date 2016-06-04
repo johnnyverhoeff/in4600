@@ -1,11 +1,13 @@
 #include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <pigpio.h>
 
-
-#define SENSOR_PIN_0 A0
+/*#define SENSOR_PIN_0 A0
 #define SENSOR_PIN_1 A1
-#define RANDOM_SEED A2
+#define RANDOM_SEED A2*/
 
-#define NUM_OF_TX 6
+#define NUM_OF_TX 3
 #define NUM_OF_ACTIVE_TX 2
 
 #define LARGE_INT_NUMBER 10000
@@ -15,7 +17,7 @@
 int16_t *measured_values;
 uint16_t iptr;
 
-uint8_t leds[] = {3, 5, 6, 8, 9, 10};
+uint8_t leds[] = {13, 19, 26, 8, 9, 10}; // other three TBD
 
 
 uint8_t *tx_decode_status   = new uint8_t[NUM_OF_TX];
@@ -237,10 +239,9 @@ void m_seq_create(uint8_t *poly, uint8_t n, uint16_t start_state, uint8_t *m_seq
 
 void print_seq(uint8_t *seq, uint16_t L) {
   for (uint16_t i = 0; i < L; i++) {
-    Serial.print(seq[i]); Serial.print(" ");
-
+    printf("%d ", seq[i]);
   }
-  Serial.println();
+  printf("\n");
 }
 
 
@@ -308,254 +309,265 @@ float correlate_w_gold_seq(uint16_t gold_seq_idx) {
 }
 
  
-
-
-void setup() {
-
-  Serial.begin(115200); 
-
-  randomSeed(analogRead(RANDOM_SEED));
-
-  
-  calc_balanced_gold_codes_idx(poly, poly2, n, num_of_balanced_gold_seq, balanced_gold_seq_start_states);
-
-  tx_code = new uint8_t*[NUM_OF_ACTIVE_TX];
-
-  time_time = 0;
-
-  for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-
-    tx_code[i] = new uint8_t[L];
-    gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[i], tx_code[i]);
-    
-    tx_timestamp[i] = 0;
-    tx_detected[i] = 0;
-    tx_k[i] = 0;
-
-
-    pinMode(leds[i], OUTPUT);
-    digitalWrite(leds[i], LOW);
-  }
-
-  measured_values = new int16_t[L];
-
-
-
-  iptr = 0;
-
-  for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-    digitalWrite(leds[i], HIGH);
-    tx_status[i] = 0;
-  }
-
-  Serial.print("k: ");
-  Serial.println(k);
-
-  Serial.println("TP TX, TIME: (status, decode_status, corr*L, tx_timestamp)");
-
-  Serial.print("L: "); Serial.println(L);
-}
-
-
 uint8_t enough_measurements = 0;
 
-void loop() {
 
-  //unsigned long start_time_corr = micros();
+int seed;
 
-  for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-    //if (tx_timestamp[i] - time_time >= L) {
-    if (time_time - tx_timestamp[i] >= L) {
-      
-      tx_k[i]++;
+int main(int argc, char *argv[]) {
+  
+	if (gpioInitialise() < 0) {
+		fprintf(stderr, "pigpio init. failed\0");
+		return 1;
+	}
 
-      if (tx_k[i] >= (uint16_t)k) {
-        if (!k_msg) {
-          Serial.println("***** K reached *****");
-          Serial.print  ("***** TX's that tx'ed: ");
-          for (uint8_t j = 0; j < NUM_OF_ACTIVE_TX; j++) {
-            if (tx_detected[j])
-              Serial.print(j);
-            Serial.print(" ");
-          }
-          Serial.println("*****");
-          
-          k_msg = 1;
-        }
-      }
-
-      long r = random(0, 10000);
-      float scaled_r = ((float) r) / 10000.0;
-
-      if (scaled_r < p) {   
-        tx_status[i] = 1;
-        tx_timestamp[i] = time_time;
-      } else { 
-        tx_status[i] = 0;
-      }
-    }
-  }
+	seed = time(NULL);
+	srand(seed);
 
 
-  for (uint16_t chip = 0; chip < L; chip++) {
-    for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-      if (tx_status[i] == 1) {
 
-        digitalWrite(leds[i], tx_code[i][chip]);
-        //delay(1);
+	calc_balanced_gold_codes_idx(poly, poly2, n, num_of_balanced_gold_seq, balanced_gold_seq_start_states);
 
-        /*Serial.print("chip: "); Serial.print(chip);
-        Serial.print(" ,i: "); Serial.println(i);*/
+	tx_code = new uint8_t*[NUM_OF_ACTIVE_TX];
 
-      } else {
-        digitalWrite(leds[i], HIGH); 
-      }
-    }
+	time_time = 0;
 
-    measured_values[iptr++] = analogRead(SENSOR_PIN_0) + analogRead(SENSOR_PIN_1);
+	for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
 
-    if (iptr >= L) {
-      enough_measurements = 1;
-      iptr = 0;
-    }
+		tx_code[i] = new uint8_t[L];
+		gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[i], tx_code[i]);
 
-    if (enough_measurements) {
-
-      uint8_t note_worthy_msg;
-
-      
-      
-      
-      for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-
-        //unsigned long start_corr_time = micros();
-
-        float corr = correlate_w_gold_seq(i);
-
-        /*Serial.println(micros() - start_corr_time);
-        Serial.println();
-        delay(2000);*/
-        
-        uint8_t status  = (corr >= 0.5) ? 1 : 0;
-
-        if (i < NUM_OF_ACTIVE_TX) {
-          tx_decode_status[i] = status;
-        }
-
-        note_worthy_msg = 0;
-
-        if (time_time == (L + tx_timestamp[i] - 1)) { // correct time to decode result
-          if (tx_status[i] == 1) {
-            if (tx_decode_status[i] == 0) {
-              Serial.print("*FN*");
-              fn++;
-              note_worthy_msg = 1;
-            } else {
-              Serial.print(" TP ");
-              tp++;
-              note_worthy_msg = 1;
-              tx_detected[i] = 1;
-            }
-          } else {
-            if (tx_decode_status[i] == 0) {
-              //Serial.print("TN");
-              tn++;
-            } else {
-              Serial.print("*FP*");
-              fp++;
-              note_worthy_msg = 1;
-            }
-          } 
-        } else {
-          if (tx_status[i] == 1) { // busy modulating
-            if (tx_decode_status[i] == 0) {
-              // ok still busy modulating
-              tn++;
-              //Serial.print("TN");
-            } else {
-              // not ok because still busy modulating so should not be high
-              fp++;
-              Serial.print("*FP*");
-              note_worthy_msg = 1;
-            }
-          } else {
-            if (tx_decode_status[i] == 0) {
-              // ok should be off
-              tn++;
-              //Serial.print("TN");
-            } else {
-              // not ok because not modulating so should not be high
-              fp++;
-              Serial.print("*FP*");
-              note_worthy_msg = 1;
-            }
-          }
-        }
-
-        if (note_worthy_msg == 1) {
-          Serial.print(" ");
-          Serial.print(i);
-          Serial.print(", ");
-          Serial.print(time_time);
-          Serial.print(": ");
-          Serial.print( "(" ); 
-          Serial.print(tx_status[i]); 
-          Serial.print(", ");
-          Serial.print(tx_decode_status[i]);
-          Serial.print(", ");
-          Serial.print(corr * L);
-          Serial.print(", ");
-          Serial.print(tx_timestamp[i]);
-          Serial.print(")");
-
-          Serial.println();
-        }
+		tx_timestamp[i] = 0;
+		tx_detected[i] = 0;
+		tx_k[i] = 0;
 
 
-      }
+		gpioSetMode(leds[i], OUTPUT);
+		gpioWrite(leds[i], LOW);
+	}
+
+	measured_values = new int16_t[L];
 
 
-      
-      
-    }
-   
-    time_time++;
-  }
+
+	iptr = 0;
+
+	for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
+		digitalWrite(leds[i], HIGH);
+		tx_status[i] = 0;
+	}
+
+	printf("k: %f\n", k);
+
+	printf("TP TX, TIME: (status, decode_status, corr*L, tx_timestamp)\n");
+
+	printf("L: %d\n", L)
+
+	while (1) {
+
+	  //unsigned long start_time_corr = micros();
+
+	  for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
+	    //if (tx_timestamp[i] - time_time >= L) {
+	    if (time_time - tx_timestamp[i] >= L) {
+	      
+	      tx_k[i]++;
+
+	      if (tx_k[i] >= (uint16_t)k) {
+	        if (!k_msg) {
+	          printf("***** K reached *****"\n);
+	          printf("***** TX's that tx'ed: ");
+	          for (uint8_t j = 0; j < NUM_OF_ACTIVE_TX; j++) {
+	            if (tx_detected[j])
+	              printf("%d", j);
+	            printf(" ");
+	          }
+	          printf("*****\n");
+	          
+	          k_msg = 1;
+	        }
+	      }
+
+	      long r = rand() % 10000;
+	      float scaled_r = ((float) r) / 10000.0;
+
+	      if (scaled_r < p) {   
+	        tx_status[i] = 1;
+	        tx_timestamp[i] = time_time;
+	      } else { 
+	        tx_status[i] = 0;
+	      }
+	    }
+	  }
 
 
-  uint8_t all_detected = 1;
+	  for (uint16_t chip = 0; chip < L; chip++) {
+	    for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
+	      if (tx_status[i] == 1) {
 
-  for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-    digitalWrite(leds[i], HIGH);
+	        gpioWrite(leds[i], tx_code[i][chip]);
+	        //delay(1);
 
-    all_detected  &= tx_detected[i];
-  }
+	        /*Serial.print("chip: "); Serial.print(chip);
+	        Serial.print(" ,i: "); Serial.println(i);*/
 
-  if (all_detected == 1) {
-    
+	      } else {
+	        gpioWrite(leds[i], HIGH); 
+	      }
+	    }
 
-    Serial.println("      ***********************************");
-    Serial.print("      All tx detected after: "); Serial.println(time_time - all_detected_timestamp);
-    Serial.println("      ***********************************");
-    float f_measure = 2 * ((float)tp) / (2 * ((float)tp) + (float)fp + (float)fn);
-    Serial.print("      F-measure: "); Serial.println(f_measure);
-    Serial.println("      ***********************************");
-    Serial.print  ("      ");
-    all_detected_timestamp = time_time;
+	    measured_values[iptr++] = 0; /*analogRead(SENSOR_PIN_0) + analogRead(SENSOR_PIN_1);*/
 
-    for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-      tx_detected[i] = 0;
-      Serial.print(i);Serial.print(": ");Serial.print(tx_k[i]);Serial.print(", ");
-      tx_k[i] = 0;
-      k_msg = 0;
-    }
-    Serial.println();
-    Serial.println("      ***********************************");
-  }
+	    if (iptr >= L) {
+	      enough_measurements = 1;
+	      iptr = 0;
+	    }
+
+	    if (enough_measurements) {
+
+	      uint8_t note_worthy_msg;
+
+	      
+	      
+	      
+	      for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
+
+	        //unsigned long start_corr_time = micros();
+
+	        float corr = correlate_w_gold_seq(i);
+
+	        /*Serial.println(micros() - start_corr_time);
+	        printf("\n");;
+	        delay(2000);*/
+	        
+	        uint8_t status  = (corr >= 0.5) ? 1 : 0;
+
+	        if (i < NUM_OF_ACTIVE_TX) {
+	          tx_decode_status[i] = status;
+	        }
+
+	        note_worthy_msg = 0;
+
+	        if (time_time == (L + tx_timestamp[i] - 1)) { // correct time to decode result
+	          if (tx_status[i] == 1) {
+	            if (tx_decode_status[i] == 0) {
+	              printf("*FN*");
+	              fn++;
+	              note_worthy_msg = 1;
+	            } else {
+	              Serial.print(" TP ");
+	              tp++;
+	              note_worthy_msg = 1;
+	              tx_detected[i] = 1;
+	            }
+	          } else {
+	            if (tx_decode_status[i] == 0) {
+	              //printf("TN");
+	              tn++;
+	            } else {
+	              printf("*FP*");
+	              fp++;
+	              note_worthy_msg = 1;
+	            }
+	          } 
+	        } else {
+	          if (tx_status[i] == 1) { // busy modulating
+	            if (tx_decode_status[i] == 0) {
+	              // ok still busy modulating
+	              tn++;
+	              //Serial.print("TN");
+	            } else {
+	              // not ok because still busy modulating so should not be high
+	              fp++;
+	              printf("*FP*");
+	              note_worthy_msg = 1;
+	            }
+	          } else {
+	            if (tx_decode_status[i] == 0) {
+	              // ok should be off
+	              tn++;
+	              //Serial.print("TN");
+	            } else {
+	              // not ok because not modulating so should not be high
+	              fp++;
+	              printf("*FP*");
+	              note_worthy_msg = 1;
+	            }
+	          }
+	        }
+
+	        if (note_worthy_msg == 1) {
+	          printf(" %d, %d:  (%d, %d, %f, %d)\n", i, time_time, tx_status[i], tx_decode_status[i], corr * L, tx_timestamp[i]);
+	          /*Serial.print(" ");
+	          Serial.print(i);
+	          Serial.print(", ");
+	          Serial.print(time_time);
+	          Serial.print(": ");
+	          Serial.print( "(" ); 
+	          Serial.print(tx_status[i]); 
+	          Serial.print(", ");
+	          Serial.print(tx_decode_status[i]);
+	          Serial.print(", ");
+	          Serial.print(corr * L);
+	          Serial.print(", ");
+	          Serial.print(tx_timestamp[i]);
+	          Serial.print(")");
+
+	          printf("\n");*/
+	        }
 
 
-  //Serial.print("TIME CORRRRR: "); Serial.println((micros() - start_time_corr));
-  //Serial.println();
-  //delay(1000);
+	      }
+
+
+	      
+	      
+	    }
+	   
+	    time_time++;
+	  }
+
+
+	  uint8_t all_detected = 1;
+
+	  for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
+	    gpioWrite(leds[i], HIGH);
+
+	    all_detected  &= tx_detected[i];
+	  }
+
+	  if (all_detected == 1) {
+	    
+
+
+	    printf("      ***********************************\n");
+	    printf("      All tx detected after: %d\n", time_time - all_detected_timestamp)
+	    printf("      ***********************************\n");
+	    
+
+	    float f_measure = 2 * ((float)tp) / (2 * ((float)tp) + (float)fp + (float)fn);
+
+	    printf("      F-measure: %f\n", f_measure);
+	    printf("      ***********************************\n");
+
+	    printf("      ");
+	    all_detected_timestamp = time_time;
+
+	    for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
+	      tx_detected[i] = 0;
+	      printf("%d: %d, ", i, tx_k[i]);
+	      tx_k[i] = 0;
+	      k_msg = 0;
+	    }
+
+	    printf("\n");
+	    printf("      ***********************************\n");
+	  }
+
+
+	  //Serial.print("TIME CORRRRR: "); Serial.println((micros() - start_time_corr));
+	  //printf("\n");;
+	  //delay(1000);
+	}
 
 }
