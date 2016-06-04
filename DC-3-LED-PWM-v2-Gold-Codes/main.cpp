@@ -2,13 +2,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pigpio.h>
+#include <math.h>
+
 
 /*#define SENSOR_PIN_0 A0
 #define SENSOR_PIN_1 A1
 #define RANDOM_SEED A2*/
 
-#define NUM_OF_TX 3
-#define NUM_OF_ACTIVE_TX 2
+#define NUM_OF_TX 6
+#define NUM_OF_ACTIVE_TX 6
 
 #define LARGE_INT_NUMBER 10000
 
@@ -17,7 +19,7 @@
 int16_t *measured_values;
 uint16_t iptr;
 
-uint8_t leds[] = {13, 19, 26, 8, 9, 10}; // other three TBD
+uint8_t leds[] = {13, 19, 26, 16, 20, 21};
 
 
 uint8_t *tx_decode_status   = new uint8_t[NUM_OF_TX];
@@ -30,7 +32,7 @@ uint8_t **tx_code;
 
 uint32_t all_detected_timestamp = 0;
 
-uint32_t time_time;
+uint32_t tt;
 
 float p = 0.01; //0.0289;// 0.05; // Prob. that tx will tx_status.
 
@@ -330,7 +332,7 @@ int main(int argc, char *argv[]) {
 
 	tx_code = new uint8_t*[NUM_OF_ACTIVE_TX];
 
-	time_time = 0;
+	tt = 0;
 
 	for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
 
@@ -342,8 +344,8 @@ int main(int argc, char *argv[]) {
 		tx_k[i] = 0;
 
 
-		gpioSetMode(leds[i], OUTPUT);
-		gpioWrite(leds[i], LOW);
+		gpioSetMode(leds[i], PI_OUTPUT);
+		gpioWrite(leds[i], 0);
 	}
 
 	measured_values = new int16_t[L];
@@ -353,7 +355,7 @@ int main(int argc, char *argv[]) {
 	iptr = 0;
 
 	for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-		digitalWrite(leds[i], HIGH);
+		gpioWrite(leds[i], 1);
 		tx_status[i] = 0;
 	}
 
@@ -361,21 +363,21 @@ int main(int argc, char *argv[]) {
 
 	printf("TP TX, TIME: (status, decode_status, corr*L, tx_timestamp)\n");
 
-	printf("L: %d\n", L)
+	printf("L: %d\n", L);
 
 	while (1) {
 
 	  //unsigned long start_time_corr = micros();
 
 	  for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-	    //if (tx_timestamp[i] - time_time >= L) {
-	    if (time_time - tx_timestamp[i] >= L) {
+	    //if (tx_timestamp[i] - tt >= L) {
+	    if (tt - tx_timestamp[i] >= L) {
 	      
 	      tx_k[i]++;
 
 	      if (tx_k[i] >= (uint16_t)k) {
 	        if (!k_msg) {
-	          printf("***** K reached *****"\n);
+	          printf("***** K reached *****\n");
 	          printf("***** TX's that tx'ed: ");
 	          for (uint8_t j = 0; j < NUM_OF_ACTIVE_TX; j++) {
 	            if (tx_detected[j])
@@ -393,7 +395,7 @@ int main(int argc, char *argv[]) {
 
 	      if (scaled_r < p) {   
 	        tx_status[i] = 1;
-	        tx_timestamp[i] = time_time;
+	        tx_timestamp[i] = tt;
 	      } else { 
 	        tx_status[i] = 0;
 	      }
@@ -412,7 +414,7 @@ int main(int argc, char *argv[]) {
 	        Serial.print(" ,i: "); Serial.println(i);*/
 
 	      } else {
-	        gpioWrite(leds[i], HIGH); 
+	        gpioWrite(leds[i], 1); 
 	      }
 	    }
 
@@ -448,14 +450,14 @@ int main(int argc, char *argv[]) {
 
 	        note_worthy_msg = 0;
 
-	        if (time_time == (L + tx_timestamp[i] - 1)) { // correct time to decode result
+	        if (tt == (L + tx_timestamp[i] - 1)) { // correct time to decode result
 	          if (tx_status[i] == 1) {
 	            if (tx_decode_status[i] == 0) {
 	              printf("*FN*");
 	              fn++;
 	              note_worthy_msg = 1;
 	            } else {
-	              Serial.print(" TP ");
+	              printf(" TP ");
 	              tp++;
 	              note_worthy_msg = 1;
 	              tx_detected[i] = 1;
@@ -497,11 +499,11 @@ int main(int argc, char *argv[]) {
 	        }
 
 	        if (note_worthy_msg == 1) {
-	          printf(" %d, %d:  (%d, %d, %f, %d)\n", i, time_time, tx_status[i], tx_decode_status[i], corr * L, tx_timestamp[i]);
+	          printf(" %d, %d:  (%d, %d, %f, %d)\n", i, tt, tx_status[i], tx_decode_status[i], corr * L, tx_timestamp[i]);
 	          /*Serial.print(" ");
 	          Serial.print(i);
 	          Serial.print(", ");
-	          Serial.print(time_time);
+	          Serial.print(tt);
 	          Serial.print(": ");
 	          Serial.print( "(" ); 
 	          Serial.print(tx_status[i]); 
@@ -524,14 +526,14 @@ int main(int argc, char *argv[]) {
 	      
 	    }
 	   
-	    time_time++;
+	    tt++;
 	  }
 
 
 	  uint8_t all_detected = 1;
 
 	  for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
-	    gpioWrite(leds[i], HIGH);
+	    gpioWrite(leds[i], 1);
 
 	    all_detected  &= tx_detected[i];
 	  }
@@ -541,7 +543,7 @@ int main(int argc, char *argv[]) {
 
 
 	    printf("      ***********************************\n");
-	    printf("      All tx detected after: %d\n", time_time - all_detected_timestamp)
+	    printf("      All tx detected after: %d\n", tt - all_detected_timestamp);
 	    printf("      ***********************************\n");
 	    
 
@@ -551,7 +553,7 @@ int main(int argc, char *argv[]) {
 	    printf("      ***********************************\n");
 
 	    printf("      ");
-	    all_detected_timestamp = time_time;
+	    all_detected_timestamp = tt;
 
 	    for (uint8_t i = 0; i < NUM_OF_ACTIVE_TX; i++) {
 	      tx_detected[i] = 0;
