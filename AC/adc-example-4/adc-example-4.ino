@@ -1,19 +1,29 @@
 #define led 2
+#define modulate_enable_pin 3
 
-#define OFF HIGH
-#define ON LOW
+#define sensing_pin 7
 
-#define TIMER_FREQ 100 //Hz
+#define SIZE 800
 
-// With 100 Hz @ 50 % duty cycle, you can see flikkering and the led going all dim, prob. due to AC
+#define TIMER_FREQ 1000 //Hz
 
-uint16_t timer1_counter;
+uint16_t *adc_buffer;
+
+volatile uint16_t timer1_counter;
+
 
 void setup() {
-  pinMode(led, OUTPUT);
-  digitalWrite(led, OFF);
+  pinMode(sensing_pin, OUTPUT);
+  digitalWrite(sensing_pin, LOW);
 
-  Serial.begin(115200);
+  pinMode(led, OUTPUT);
+  digitalWrite(led, HIGH);
+
+  pinMode(modulate_enable_pin, INPUT);
+
+  Serial.begin(250000);
+
+  adc_buffer = new uint16_t[SIZE];
 
   // initialize timer1 
   noInterrupts();           // disable all interrupts
@@ -27,21 +37,43 @@ void setup() {
 
   timer1_counter = /*(1 << 16)*/ 65536 - (16 * 1000000 / 256 / TIMER_FREQ);
 
-  Serial.println(TIMER_FREQ);
-  Serial.println(timer1_counter);
 
  
   TCNT1 = timer1_counter;   // preload timer
   TCCR1B |= (1 << CS12);    // 256 prescaler 
   TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
+
   interrupts();             // enable all interrupts
 }
 
+int i;
+
+int buffer_clear = 0;
+
+
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
-  digitalWrite(led, digitalRead(led) ^ 1);
+
+  if (digitalRead(modulate_enable_pin) == 0) {
+      digitalWrite(led, digitalRead(led) ^ 1);
+  }
 }
 
 void loop() {
+
+
+  for (i = 0; ((i < SIZE) && (digitalRead(modulate_enable_pin) == 0)) ; i++) {
+    adc_buffer[i] = analogRead(A0);
+    buffer_clear = 0;
+  }
+
+  if (buffer_clear == 0 && digitalRead(modulate_enable_pin) == 1) {
+    for (int j = 0; j < i; j++) {
+      Serial.println(adc_buffer[j]);
+    }
+    buffer_clear = 1;
+  }
+  
 }
+
 

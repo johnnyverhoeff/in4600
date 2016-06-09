@@ -1,19 +1,23 @@
 #define led 2
+#define modulate_enable_pin 3
 
 #define OFF HIGH
 #define ON LOW
 
-#define TIMER_FREQ 100 //Hz
+#define TIMER_FREQ 1000 //Hz
 
-// With 100 Hz @ 50 % duty cycle, you can see flikkering and the led going all dim, prob. due to AC
+volatile uint16_t timer1_counter;
+volatile uint8_t timer_enable;
 
-uint16_t timer1_counter;
+volatile uint8_t a = 0;
 
 void setup() {
   pinMode(led, OUTPUT);
+  pinMode(modulate_enable_pin, INPUT);
+  
   digitalWrite(led, OFF);
 
-  Serial.begin(115200);
+  //Serial.begin(115200);
 
   // initialize timer1 
   noInterrupts();           // disable all interrupts
@@ -27,21 +31,52 @@ void setup() {
 
   timer1_counter = /*(1 << 16)*/ 65536 - (16 * 1000000 / 256 / TIMER_FREQ);
 
-  Serial.println(TIMER_FREQ);
-  Serial.println(timer1_counter);
+  //Serial.println(TIMER_FREQ);
+  //Serial.println(timer1_counter);
 
  
   TCNT1 = timer1_counter;   // preload timer
   TCCR1B |= (1 << CS12);    // 256 prescaler 
   TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
+
+
+  
+  attachInterrupt(digitalPinToInterrupt(modulate_enable_pin), isr_rising, RISING );
+  attachInterrupt(digitalPinToInterrupt(modulate_enable_pin), isr_falling, FALLING );
+
+  timer_enable = 0;
+  
   interrupts();             // enable all interrupts
 }
 
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
-  digitalWrite(led, digitalRead(led) ^ 1);
+
+  if (timer_enable == 1) {
+      digitalWrite(led, digitalRead(led) ^ 1);
+  }
 }
 
+void isr_rising(void) {
+  timer_enable = 0;
+
+
+
+}
+
+void isr_falling(void) {
+  timer_enable = 1;
+
+
+  
+}
+
+
+
 void loop() {
+
+
+
+  
 }
 
