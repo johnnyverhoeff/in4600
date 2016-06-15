@@ -1,17 +1,29 @@
-#define led 8
+#define modulate_enable 3
 
-#define OFF LOW
-#define ON HIGH
+#define led 8 
 
-#define TIMER_FREQ 1000 //Hz
+int done_modulating = 0;
 
-uint16_t timer1_counter;
+#define TIMER_FREQ 2000 //Hz
+
+volatile uint16_t timer1_counter;
 
 void setup() {
-  pinMode(led, OUTPUT);
-  digitalWrite(led, OFF);
+
 
   Serial.begin(250000);
+
+  pinMode(led, OUTPUT);
+  digitalWrite(led, HIGH);
+
+  pinMode(modulate_enable, INPUT);
+  
+
+
+
+
+
+
 
   // initialize timer1 -
   noInterrupts();           // disable all interrupts
@@ -37,9 +49,30 @@ void setup() {
 
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
-  digitalWrite(led, digitalRead(led) ^ 1);
+
+  if (digitalRead(modulate_enable) == 0)
+    Serial.println(analogRead(A0));
 }
 
 void loop() {
+  if (!done_modulating && digitalRead(modulate_enable) == 0) {
+    
+    for (int i = 0; i < 4; i++) {
+      digitalWrite(led, digitalRead(led) ^ 1);
+      delayMicroseconds(900);
+      
+      
+    }
+    done_modulating = 1;
+    //digitalWrite(led, HIGH);
+
+  }
+
+  if (done_modulating) {
+    while (digitalRead(modulate_enable) == 0);
+    done_modulating = 0;
+  }
+  
 }
+
 

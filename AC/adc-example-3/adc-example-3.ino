@@ -1,15 +1,11 @@
 #define modulate_enable_pin 3
 
-#define sensing_pin 7
-
 #define SIZE 800
 
 uint16_t *adc_buffer;
 
 
 void setup() {
-  pinMode(sensing_pin, OUTPUT);
-  digitalWrite(sensing_pin, LOW);
 
   pinMode(modulate_enable_pin, INPUT);
 

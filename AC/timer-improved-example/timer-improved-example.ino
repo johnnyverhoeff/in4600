@@ -1,8 +1,8 @@
-#define led 2
+#define led 8
 #define modulate_enable_pin 3
 
-#define OFF HIGH
-#define ON LOW
+#define OFF LOW
+#define ON HIGH
 
 #define TIMER_FREQ 1000 //Hz
 
@@ -17,7 +17,7 @@ void setup() {
   
   digitalWrite(led, OFF);
 
-  //Serial.begin(115200);
+  Serial.begin(250000);
 
   // initialize timer1 
   noInterrupts();           // disable all interrupts
@@ -41,8 +41,7 @@ void setup() {
 
 
   
-  attachInterrupt(digitalPinToInterrupt(modulate_enable_pin), isr_rising, RISING );
-  attachInterrupt(digitalPinToInterrupt(modulate_enable_pin), isr_falling, FALLING );
+  attachInterrupt(digitalPinToInterrupt(modulate_enable_pin), isr_change, CHANGE );
 
   timer_enable = 0;
   
@@ -54,29 +53,18 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
 
   if (timer_enable == 1) {
       digitalWrite(led, digitalRead(led) ^ 1);
+  } else {
+    digitalWrite(led, ON);
   }
 }
 
-void isr_rising(void) {
-  timer_enable = 0;
-
-
-
-}
-
-void isr_falling(void) {
-  timer_enable = 1;
-
-
-  
+void isr_change(void) {
+  timer_enable = digitalRead(modulate_enable_pin) ^ 1;
 }
 
 
 
 void loop() {
-
-
-
   
 }
 

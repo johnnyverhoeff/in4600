@@ -1,19 +1,32 @@
-#define led 8
+#define led 2
+#define modulate_enable_pin 3
 
 #define OFF LOW
 #define ON HIGH
 
 #define TIMER_FREQ 1000 //Hz
 
-uint16_t timer1_counter;
+volatile uint16_t timer1_counter;
+volatile uint8_t timer_enable;
+
+volatile uint8_t a = 0;
+
+
+#define SIZE 15
+
+uint8_t code[SIZE] = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
+
+uint8_t ptr = 0;
 
 void setup() {
   pinMode(led, OUTPUT);
+  pinMode(modulate_enable_pin, INPUT);
+  
   digitalWrite(led, OFF);
 
   Serial.begin(250000);
 
-  // initialize timer1 -
+  // initialize timer1 
   noInterrupts();           // disable all interrupts
   TCCR1A = 0;
   TCCR1B = 0;
@@ -25,21 +38,43 @@ void setup() {
 
   timer1_counter = /*(1 << 16)*/ 65536 - (16 * 1000000 / 256 / TIMER_FREQ);
 
-  Serial.println(TIMER_FREQ);
-  Serial.println(timer1_counter);
+  //Serial.println(TIMER_FREQ);
+  //Serial.println(timer1_counter);
 
  
   TCNT1 = timer1_counter;   // preload timer
   TCCR1B |= (1 << CS12);    // 256 prescaler 
   TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
+
+
+  
+  attachInterrupt(digitalPinToInterrupt(modulate_enable_pin), isr_change, CHANGE );
+
+  timer_enable = 0;
+  
   interrupts();             // enable all interrupts
 }
 
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
-  digitalWrite(led, digitalRead(led) ^ 1);
+
+  if (timer_enable == 1) {
+      digitalWrite(led, code[ptr++]);
+  } else {
+    digitalWrite(led, ON);
+  }
+
+  if (ptr > SIZE)
+    ptr = 0;
 }
 
+void isr_change(void) {
+  timer_enable = digitalRead(modulate_enable_pin) ^ 1;
+}
+
+
+
 void loop() {
+  
 }
 

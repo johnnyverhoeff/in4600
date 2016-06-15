@@ -26,8 +26,8 @@ void loop() {
     //digitalWrite(5, digitalRead(5) ^ 1);
 
     //time_buffer[i] = micros();
-    //adc_buffer[i] = analogRead(A0);
-    Serial.print(time_buffer[0]); Serial.print(": "); Serial.println(adc_buffer[0]);
+    adc_buffer[i] = analogRead(A0);
+    /*Serial.print(time_buffer[0]); Serial.print(": "); */Serial.println(1023);
     t += (micros() - it);
   }
 
