@@ -4,7 +4,7 @@
 #define TIMER_FREQ 1000 //Hz
 volatile uint16_t timer1_counter;
 
-uint8_t modulate_idx = 0;
+volatile uint8_t modulate_idx = 0;
 
 uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
 
@@ -13,7 +13,7 @@ uint16_t L = (1 << n) - 1;
 uint16_t N = (1 << n) + 1;
 
 uint8_t *m_seq;
-uint16_t m_seq_idx;
+volatile uint16_t m_seq_idx;
 
 
 
@@ -60,11 +60,16 @@ void m_seq_create(uint8_t *poly, uint8_t n, uint16_t start_state, uint8_t *m_seq
 }
 
 
+void enable_timer() {
+  TCNT1 = 0;
+  TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
+}
 
+void disable_timer() {
+  TIMSK1 &= ~(1 << TOIE1); 
+}
 
 void setup() {
-
-
   Serial.begin(250000);
 
   pinMode(modulate_enable, INPUT);
@@ -76,14 +81,14 @@ void setup() {
   m_seq_idx = 0;
   m_seq_create(poly, n, 1, m_seq);
 
-  for (int i = 0; i < L; i++) {
+  /*for (int i = 0; i < L; i++) {
     Serial.print(m_seq[i]); Serial.print(" ");
   }
-  Serial.println();
+  Serial.println();*/
 
   modulate_idx = 0;
 
-/*
+
   // initialize timer1 -
   noInterrupts();           // disable all interrupts
   TCCR1A = 0;
@@ -102,26 +107,25 @@ void setup() {
  
   TCNT1 = timer1_counter;   // preload timer
   TCCR1B |= (1 << CS12);    // 256 prescaler 
-  TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
-
-  timer_enable = 1;
+  disable_timer();
   
   interrupts();             // enable all interrupts
-*/
+  
+  attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
 
-
-  attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_falling, FALLING );
 }
 
-/*
+
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
 
-  if (digitalRead(modulate_enable) == 0 && modulate_idx < 4) {
+  if (modulate_idx < 4) {
     
     digitalWrite(led, m_seq[m_seq_idx]);
+    
     //Serial.print(m_seq[m_seq_idx]); Serial.print(" " );
     //Serial.println(m_seq[m_seq_idx]);
+    
     m_seq_idx++;
     modulate_idx++;
 
@@ -129,32 +133,23 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
       m_seq_idx = 0;
     }
   }
+ 
+}
 
-  if (digitalRead(modulate_enable) == 1) {
+
+void isr_change(void) {
+  int state = digitalRead(modulate_enable);
+  
+  if (state == 0) {
     modulate_idx = 0;
-    //Serial.println();
+    disable_timer();
+    
+  } else {
+    //delayMicroseconds(1100); // less than 1 ms seems to work because that is the symbol length
+    enable_timer();
   }
-
-  
-  
 }
-*/
 
-void isr_falling(void) {
-
-  for (uint8_t i = 0; i < 4; i++) {
-    //Serial.println(m_seq[m_seq_idx]);
-    digitalWrite(led, m_seq[m_seq_idx]);
-
-    m_seq_idx++;
-    if (m_seq_idx >= L) {
-      m_seq_idx = 0;
-    }
-
-    delayMicroseconds(1000);
-  }
-  
-}
 
 void loop() {  
 

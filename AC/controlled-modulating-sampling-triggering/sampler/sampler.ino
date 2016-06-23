@@ -64,12 +64,17 @@ void m_seq_create(uint8_t *poly, uint8_t n, uint16_t start_state, uint8_t *m_seq
   
 }
 
+void enable_timer() {
+  TCNT1 = 0;
+  TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
+}
 
+void disable_timer() {
+  TIMSK1 &= ~(1 << TOIE1); 
+}
 
 
 void setup() {
-
-
   Serial.begin(250000);
 
   pinMode(modulate_enable, INPUT);
@@ -85,7 +90,7 @@ void setup() {
   sample_idx = 0;
 
   // initialize timer1 -
-/*  noInterrupts();           // disable all interrupts
+  noInterrupts();           // disable all interrupts
   TCCR1A = 0;
   TCCR1B = 0;
 
@@ -102,63 +107,46 @@ void setup() {
  
   TCNT1 = timer1_counter;   // preload timer
   TCCR1B |= (1 << CS12);    // 256 prescaler 
-  TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
-
-  timer_enable = 1;
+  disable_timer();
   
   interrupts();             // enable all interrupts
-*/
 
-  attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_falling, FALLING );
+  attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
 }
 
-/*
+
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
 
-  if (timer_enable == 1) {
-    if (digitalRead(modulate_enable) == 0 && sample_idx < 4) {
-      adc_buffer[adc_idx++] = analogRead(A0);
-      sample_idx++;
-      if (adc_idx >= ADC_BUFFER_SIZE) {
-        adc_idx = 0;
-        adc_buffer_full = 1;
-        noInterrupts();
-        timer_enable = 0;
-      }
+  if (sample_idx < 4) {
+    adc_buffer[adc_idx++] = analogRead(A0);
+    sample_idx++;
+    if (adc_idx >= ADC_BUFFER_SIZE) {
+      adc_idx = 0;
+      adc_buffer_full = 1;
+      noInterrupts();
     }
-
-    if (digitalRead(modulate_enable) == 1) 
-      sample_idx = 0;
-
   }
+
   
 }
-*/
 
-void isr_falling(void) {
 
-  for (uint8_t i = 0; i < 4; i++) {
-    adc_buffer[adc_idx] = analogRead(A0);
+void isr_change(void) {
+  int state = digitalRead(modulate_enable);
 
-    //Serial.println(adc_buffer[adc_idx]);
-
-    adc_idx++;
-    
-    if (adc_idx >= ADC_BUFFER_SIZE) {
-        adc_idx = 0;
-        adc_buffer_full = 1;
-        noInterrupts();
-    }
-
-    delayMicroseconds(900);
+  if (state == 0) {
+    sample_idx = 0;
+    disable_timer();
+  } else {
+    //delayMicroseconds(200); // less than 1 ms seems to work because that is the symbol length
+    enable_timer();
   }
 
 }
 
 void loop() {
   if (adc_buffer_full == 1) {
-    //timer_enable = 0; 
     noInterrupts();
 
     for (int offset = 0; offset < (ADC_BUFFER_SIZE - L); offset++) {
@@ -189,16 +177,10 @@ void loop() {
     
 
     adc_buffer_full = 0;
-    //timer_enable = 1;
     sample_idx = 0;
     interrupts();
     
   }
-
-
-
-  
-
 }
 
 
