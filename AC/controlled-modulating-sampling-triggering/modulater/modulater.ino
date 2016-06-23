@@ -83,6 +83,7 @@ void setup() {
 
   modulate_idx = 0;
 
+/*
   // initialize timer1 -
   noInterrupts();           // disable all interrupts
   TCCR1A = 0;
@@ -93,7 +94,7 @@ void setup() {
   //timer1_counter = 64286;   // preload timer 65536-16MHz/256/50Hz
   //timer1_counter = 34286;   // preload timer 65536-16MHz/256/2Hz
 
-  timer1_counter = /*(1 << 16)*/ 65536 - (16 * 1000000 / 256 / TIMER_FREQ);
+  timer1_counter =  65536 - (16 * 1000000 / 256 / TIMER_FREQ);
 
   Serial.println(TIMER_FREQ);
   Serial.println(timer1_counter);
@@ -106,10 +107,13 @@ void setup() {
   timer_enable = 1;
   
   interrupts();             // enable all interrupts
+*/
 
+
+  attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_falling, FALLING );
 }
 
-
+/*
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
 
@@ -132,6 +136,23 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
   }
 
   
+  
+}
+*/
+
+void isr_falling(void) {
+
+  for (uint8_t i = 0; i < 4; i++) {
+    //Serial.println(m_seq[m_seq_idx]);
+    digitalWrite(led, m_seq[m_seq_idx]);
+
+    m_seq_idx++;
+    if (m_seq_idx >= L) {
+      m_seq_idx = 0;
+    }
+
+    delayMicroseconds(1000);
+  }
   
 }
 

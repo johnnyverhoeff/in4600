@@ -85,7 +85,7 @@ void setup() {
   sample_idx = 0;
 
   // initialize timer1 -
-  noInterrupts();           // disable all interrupts
+/*  noInterrupts();           // disable all interrupts
   TCCR1A = 0;
   TCCR1B = 0;
 
@@ -94,7 +94,7 @@ void setup() {
   //timer1_counter = 64286;   // preload timer 65536-16MHz/256/50Hz
   //timer1_counter = 34286;   // preload timer 65536-16MHz/256/2Hz
 
-  timer1_counter = /*(1 << 16)*/ 65536 - (16 * 1000000 / 256 / TIMER_FREQ);
+  timer1_counter = 65536 - (16 * 1000000 / 256 / TIMER_FREQ);
 
   Serial.println(TIMER_FREQ);
   Serial.println(timer1_counter);
@@ -107,10 +107,12 @@ void setup() {
   timer_enable = 1;
   
   interrupts();             // enable all interrupts
+*/
 
+  attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_falling, FALLING );
 }
 
-
+/*
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
 
@@ -132,32 +134,53 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
   }
   
 }
+*/
+
+void isr_falling(void) {
+
+  for (uint8_t i = 0; i < 4; i++) {
+    adc_buffer[adc_idx] = analogRead(A0);
+
+    //Serial.println(adc_buffer[adc_idx]);
+
+    adc_idx++;
+    
+    if (adc_idx >= ADC_BUFFER_SIZE) {
+        adc_idx = 0;
+        adc_buffer_full = 1;
+        noInterrupts();
+    }
+
+    delayMicroseconds(900);
+  }
+
+}
 
 void loop() {
   if (adc_buffer_full == 1) {
-    timer_enable = 0; 
+    //timer_enable = 0; 
     noInterrupts();
 
-    /*for (int offset = 0; offset < (ADC_BUFFER_SIZE - L); offset++) {
+    for (int offset = 0; offset < (ADC_BUFFER_SIZE - L); offset++) {
 
       float corr_sum = 0;
 
       for (int i = 0; i < L; i++) {
         float r_chip = 1 - 2 * ((int8_t)m_seq[i]);
-        corr_sum += (adc_buffer[i + offset] / 1023) * r_chip;
+        corr_sum += (adc_buffer[i + offset] / 1023.0) * r_chip;
       }
 
       float normalized_l_corr = (-2 * corr_sum - 1);
 
       Serial.println(normalized_l_corr);
 
-    }*/
+    }
 
   
-    for (int i = 0; i < ADC_BUFFER_SIZE; i++) {
+    /*for (int i = 0; i < ADC_BUFFER_SIZE; i++) {
       Serial.println(adc_buffer[i]);
     }
-    Serial.println("-------------");
+    Serial.println("-------------");*/
 
     /*for (int i = 0; i < L; i++) {
       Serial.println(m_seq[i]);
@@ -166,7 +189,7 @@ void loop() {
     
 
     adc_buffer_full = 0;
-    timer_enable = 1;
+    //timer_enable = 1;
     sample_idx = 0;
     interrupts();
     
