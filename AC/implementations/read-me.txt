@@ -1,0 +1,16 @@
+implementations through 1.0 have the following flaw:
+
+The timer runs every 1-2 ms.
+Then it checks for the enable trigger signal if it is low.
+And then sampels the incoming signal for a given 4-16 times.
+When the buffer is full the timer is stopped and the buffer is dumped over the serial.
+At that point the timer continous.
+And that can happen a couple of milliseconds after the trigger signal is already low.
+But than it is still going to sample some samples and stops when the enable goes high,
+and goes on the remaing couple of sample when the signal is low again, which will be too few samples.
+
+A solution is to wait for the trigger to be high and go low when the buffer is dumped to serial.
+Another solution is to attach a isr on change on the enable trigger and enable the timer in that isr.
+Then the timer immedialtey fires and starts sampling.
+The interrupts are disabled when dumping the buffer.
+This solution is implemented in the controlled-experiment folder.
