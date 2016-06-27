@@ -84,8 +84,8 @@ void setup() {
   /*for (int i = 0; i < L; i++) {
     Serial.print(m_seq[i]); Serial.print(" ");
   }
-  Serial.println();*/
-
+  Serial.println();
+*/
   modulate_idx = 0;
 
 
@@ -101,8 +101,8 @@ void setup() {
 
   timer1_counter =  65536 - (16 * 1000000 / 256 / TIMER_FREQ);
 
-  Serial.println(TIMER_FREQ);
-  Serial.println(timer1_counter);
+  //Serial.println(TIMER_FREQ);
+  //Serial.println(timer1_counter);
 
  
   TCNT1 = timer1_counter;   // preload timer
@@ -115,11 +115,22 @@ void setup() {
 
 }
 
+int zero_counter = 0;
 
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
 
-  if (modulate_idx < 4) {
+  //Serial.println(micros());
+
+  if (zero_counter < 5) {
+    digitalWrite(led, LOW);
+    zero_counter++;
+  } else {
+    digitalWrite(led, HIGH);
+  }
+  
+  
+  /*if (modulate_idx < 1) {
     
     digitalWrite(led, m_seq[m_seq_idx]);
     
@@ -132,7 +143,9 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
     if (m_seq_idx >= L) {
       m_seq_idx = 0;
     }
-  }
+  } else {
+    digitalWrite(led, HIGH);
+  }*/
  
 }
 
@@ -140,9 +153,13 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
 void isr_change(void) {
   int state = digitalRead(modulate_enable);
   
-  if (state == 0) {
+  if (state == 1) {
     modulate_idx = 0;
     disable_timer();
+    digitalWrite(led, HIGH);
+    
+    
+    zero_counter = 0;
     
   } else {
     //delayMicroseconds(1100); // less than 1 ms seems to work because that is the symbol length

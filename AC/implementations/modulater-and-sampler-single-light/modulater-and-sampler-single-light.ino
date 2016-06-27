@@ -1,15 +1,23 @@
-#define modulate_enable 3
+#define measuring_pin A0
+#define modulate_enable_pin 3
+#define led 13
+
+#define MODULATE_TIMES 2
 
 #define TIMER_FREQ 1000 //Hz
-uint16_t timer1_counter;
+volatile uint16_t timer1_counter;
+volatile uint8_t timer_enable = 0;
 
+volatile uint8_t modulate_idx;
 
 #define ADC_BUFFER_SIZE 1600
 uint16_t *adc_buffer;
 uint16_t adc_idx;
 uint8_t adc_buffer_full;
 
-uint8_t sample_idx = 0;
+uint8_t sample_idx;
+
+
 
 uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
 
@@ -18,13 +26,7 @@ uint16_t L = (1 << n) - 1;
 uint16_t N = (1 << n) + 1;
 
 uint8_t *m_seq;
-uint16_t m_seq_idx;
-
-
-
-
-volatile uint8_t timer_enable = 0;
-
+volatile uint16_t m_seq_idx;
 
 
 /*
@@ -64,11 +66,18 @@ void m_seq_create(uint8_t *poly, uint8_t n, uint16_t start_state, uint8_t *m_seq
   
 }
 
+/*
+ * Set the timer counter to 0 and then enables the timer.
+ * So that the timer will exec. the isr immediately.
+ */
 void enable_timer() {
   TCNT1 = 0;
   TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
 }
 
+/*
+ * Disables the timer
+ */
 void disable_timer() {
   TIMSK1 &= ~(1 << TOIE1); 
 }
@@ -77,7 +86,10 @@ void disable_timer() {
 void setup() {
   Serial.begin(250000);
 
-  pinMode(modulate_enable, INPUT);
+  pinMode(modulate_enable_pin, INPUT);
+
+  pinMode(led, OUTPUT);
+  digitalWrite(led, LOW);
 
   adc_buffer = new uint16_t[ADC_BUFFER_SIZE];
   adc_idx = 0;
@@ -92,22 +104,14 @@ void setup() {
   m_seq_create(poly, n, 1, m_seq);
 
   sample_idx = 0;
+  modulate_idx = 0;
 
   // initialize timer1 -
   noInterrupts();           // disable all interrupts
   TCCR1A = 0;
   TCCR1B = 0;
 
-  // Set timer1_counter to the correct value for our interrupt interval
-  //timer1_counter = 64911;   // preload timer 65536-16MHz/256/100Hz
-  //timer1_counter = 64286;   // preload timer 65536-16MHz/256/50Hz
-  //timer1_counter = 34286;   // preload timer 65536-16MHz/256/2Hz
-
   timer1_counter = 65536 - (16 * 1000000 / 256 / TIMER_FREQ);
-
-  Serial.println(TIMER_FREQ);
-  Serial.println(timer1_counter);
-
  
   TCNT1 = timer1_counter;   // preload timer
   TCCR1B |= (1 << CS12);    // 256 prescaler 
@@ -115,15 +119,40 @@ void setup() {
   
   interrupts();             // enable all interrupts
 
-  attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
+  attachInterrupt(digitalPinToInterrupt(modulate_enable_pin), modulate_enable_state_change, CHANGE );
+
+  /*Serial.print("Timer F: "); Serial.println(TIMER_FREQ);
+  Serial.print("Timer Threshold: "); Serial.println(timer1_counter);
+
+  Serial.println(" --------- " );
+
+  Serial.print("m_seq: ");
+  for (int i = 0; i < L; i++) {
+    Serial.print(m_seq[i]); Serial.print(" ");
+  }
+  Serial.println();*/
+
 }
 
 
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
 
-  if (sample_idx < 2) {
-    adc_buffer[adc_idx++] = analogRead(A0);
+  if (modulate_idx < MODULATE_TIMES) {
+    digitalWrite(led, m_seq[m_seq_idx]);
+    
+    m_seq_idx++;
+    modulate_idx++;
+
+    if (m_seq_idx >= L) {
+      m_seq_idx = 0;
+    }
+  } else {
+    digitalWrite(led, HIGH);
+  }
+
+  if (sample_idx < MODULATE_TIMES) {
+    adc_buffer[adc_idx++] = analogRead(measuring_pin);
     sample_idx++;
     if (adc_idx >= ADC_BUFFER_SIZE) {
       adc_idx = 0;
@@ -133,15 +162,21 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
   }
 
   
+
+  
 }
 
 
-void isr_change(void) {
-  int state = digitalRead(modulate_enable);
+void modulate_enable_state_change(void) {
+  uint8_t enable_state = digitalRead(modulate_enable_pin);
 
-  if (state == 1) {
+  if (enable_state == 1) {
     sample_idx = 0;
+    modulate_idx = 0;
+    
     disable_timer();
+
+    digitalWrite(led, HIGH);
   } else {
     //delayMicroseconds(200); // less than 1 ms seems to work because that is the symbol length
     enable_timer();
@@ -155,6 +190,8 @@ void loop() {
   if (adc_buffer_full == 1) {
     noInterrupts();
 
+    digitalWrite(led, HIGH);
+  
     //long start_time = micros();
 
     uint16_t sample_min = find_min(adc_buffer, ADC_BUFFER_SIZE);
