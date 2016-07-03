@@ -197,7 +197,11 @@ void loop() {
     uint16_t sample_min = find_min(adc_buffer, ADC_BUFFER_SIZE);
     uint16_t sample_max = find_max(adc_buffer, ADC_BUFFER_SIZE);
 
-
+    /*Serial.println("======");
+    Serial.println(sample_min);
+    Serial.println(sample_max);
+    Serial.println("-------");*/
+  
     for (int offset = 0; offset < (ADC_BUFFER_SIZE - L); offset++) {
 
       float corr_sum = 0;
@@ -205,7 +209,10 @@ void loop() {
 
       for (int i = 0; i < L; i++) {
 
-        float scaled_sample = (adc_buffer[i + offset] - sample_min) / sample_max;
+        float scaled_sample = 0;
+        if (sample_max > 0)
+          scaled_sample = (adc_buffer[i + offset] - sample_min) / sample_max;
+          
         signal_sum += scaled_sample;
         
         float r_chip = 1 - 2 * ((int8_t)m_seq[i]);
