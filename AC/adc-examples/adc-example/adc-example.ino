@@ -1,4 +1,4 @@
-#define led 2
+#define led 13
 #define modulate_enable_pin 3
 
 #define OFF LOW
@@ -45,8 +45,12 @@ void isr_change() {
     for (int i = 0; i < SIZE; i++) {
 
       digitalWrite(led, 1 ^ digitalRead(led));
+
    
       //time_buffer[i] = micros();
+
+      delayMicroseconds(100);
+      
       adc_buffer[i] = analogRead(A0);
 
       delayMicroseconds(2000);
@@ -64,7 +68,7 @@ void isr_change() {
     for (int i = 0; i < SIZE; i++) {
       /*Serial.print(time_buffer[i]); Serial.print(": ");*/ Serial.println(adc_buffer[i]);
     }
-    Serial.println("**********************************************");
+    //Serial.println("**********************************************");
 
     //delayMicroseconds(8000);
     dumping_flag = 0;

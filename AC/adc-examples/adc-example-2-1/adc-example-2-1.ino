@@ -1,6 +1,6 @@
 #define modulate_enable 3
 
-#define led 8 
+#define led 13
 
 void setup() {
 
@@ -17,8 +17,6 @@ void setup() {
 void loop() {
   if (digitalRead(modulate_enable) == 0)
     Serial.println(analogRead(A0));
-
-  
 }
 
 
