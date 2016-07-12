@@ -1,6 +1,6 @@
 #define sensing_pin 7
 
-#define led 8 
+#define led 13
 
 void setup() {
   pinMode(sensing_pin, OUTPUT);
