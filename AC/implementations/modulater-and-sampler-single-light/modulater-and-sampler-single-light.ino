@@ -2,22 +2,31 @@
 #define modulate_enable_pin 3
 #define led 13
 
-#define MODULATE_TIMES 2
+#define MODULATE_TIMES 4
 
 #define TIMER_FREQ 1000 //Hz
 volatile uint16_t timer1_counter;
 volatile uint8_t timer_enable = 0;
 
+#define TIME_OUT 5000 // ms
+
 volatile uint8_t modulate_idx;
 
-#define ADC_BUFFER_SIZE 1600
-uint16_t *adc_buffer;
+
+struct entry_t {
+  uint16_t entry;
+  unsigned long entry_time;
+};
+
+#define ADC_BUFFER_SIZE 150
+entry_t *adc_buffer;
 uint16_t adc_idx;
 uint8_t adc_buffer_full;
 
 uint8_t sample_idx;
 
-
+unsigned long led_last_time_on;
+uint8_t time_out_flag = 0;
 
 uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
 
@@ -91,12 +100,13 @@ void setup() {
   pinMode(led, OUTPUT);
   digitalWrite(led, LOW);
 
-  adc_buffer = new uint16_t[ADC_BUFFER_SIZE];
+  adc_buffer = new entry_t[ADC_BUFFER_SIZE];
   adc_idx = 0;
   adc_buffer_full = 0;
 
   for (uint16_t i = 0; i < ADC_BUFFER_SIZE; i++) {
-    adc_buffer[i] = 0;
+    adc_buffer[i].entry = 0;
+    adc_buffer[i].entry_time = 0;
   }
 
   m_seq = new uint8_t[L];
@@ -105,6 +115,8 @@ void setup() {
 
   sample_idx = 0;
   modulate_idx = 0;
+
+  led_last_time_on = 0;
 
   // initialize timer1 -
   noInterrupts();           // disable all interrupts
@@ -138,6 +150,8 @@ void setup() {
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
 
+  //delayMicroseconds(100);
+
   if (modulate_idx < MODULATE_TIMES) {
     digitalWrite(led, m_seq[m_seq_idx]);
     
@@ -151,8 +165,14 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
     digitalWrite(led, HIGH);
   }
 
+  //delayMicroseconds(100);
+
   if (sample_idx < MODULATE_TIMES) {
-    adc_buffer[adc_idx++] = analogRead(measuring_pin);
+    
+    adc_buffer[adc_idx].entry = analogRead(measuring_pin);
+    adc_buffer[adc_idx].entry_time = millis();
+    adc_idx++;
+    
     sample_idx++;
     if (adc_idx >= ADC_BUFFER_SIZE) {
       adc_idx = 0;
@@ -197,15 +217,24 @@ void loop() {
     uint16_t sample_min = find_min(adc_buffer, ADC_BUFFER_SIZE);
     uint16_t sample_max = find_max(adc_buffer, ADC_BUFFER_SIZE);
 
-
+    /*Serial.println("======");
+    Serial.println(sample_min);
+    Serial.println(sample_max);
+    Serial.println("-------");*/
+  
     for (int offset = 0; offset < (ADC_BUFFER_SIZE - L); offset++) {
 
       float corr_sum = 0;
       float signal_sum = 0;
 
+      //Serial.println(adc_buffer[offset].entry);
+
       for (int i = 0; i < L; i++) {
 
-        float scaled_sample = (adc_buffer[i + offset] - sample_min) / sample_max;
+        float scaled_sample = 0;
+        if (sample_max > 0)
+          scaled_sample = (adc_buffer[i + offset].entry - sample_min) / sample_max;
+          
         signal_sum += scaled_sample;
         
         float r_chip = 1 - 2 * ((int8_t)m_seq[i]);
@@ -217,7 +246,27 @@ void loop() {
       //Serial.println(calc_num_of_tx);
 
       float normalized_l_corr = (-2 * corr_sum) - calc_num_of_tx;
-      Serial.println(normalized_l_corr);
+
+
+      
+      //Serial.println(normalized_l_corr);
+
+
+      if (normalized_l_corr > ((float) (L / 2))) {
+        led_last_time_on = adc_buffer[offset].entry_time;
+
+        Serial.print(led_last_time_on); Serial.println(": on");
+
+        time_out_flag = 0;
+      }
+
+      
+
+      if (!time_out_flag && (millis() - led_last_time_on >= TIME_OUT)) {
+        Serial.print(millis()); Serial.println(": TIME OUT; off");
+        time_out_flag = 1;
+      }
+
 
     }
 
@@ -246,23 +295,23 @@ void loop() {
 
 
 
-uint16_t find_min(uint16_t *array, uint16_t length) {
+uint16_t find_min(entry_t *array, uint16_t length) {
   uint16_t min = 1 << 15;
 
   for (uint16_t i = 0; i < length; i++) {
-    if (array[i] < min)
-      min = array[i];
+    if (array[i].entry < min)
+      min = array[i].entry;
   }
 
   return min;
 }
 
-uint16_t find_max(uint16_t *array, uint16_t length) {
+uint16_t find_max(entry_t *array, uint16_t length) {
   uint16_t max = 0;
 
   for (uint16_t i = 0; i < length; i++) {
-    if (array[i] > max)
-      max = array[i];
+    if (array[i].entry > max)
+      max = array[i].entry;
   }
 
   return max;

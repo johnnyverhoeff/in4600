@@ -20,7 +20,6 @@ void loop() {
   else 
     Serial.println("0");
 
-  
 }
 
 
