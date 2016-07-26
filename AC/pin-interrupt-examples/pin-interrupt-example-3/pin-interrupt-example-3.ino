@@ -7,15 +7,13 @@ void setup() {
 
   Serial.begin(250000);
 
-  digitalWrite(led, LOW);
+  digitalWrite(led, HIGH);
 
 }
 
 void loop() {
 
-  Serial.print(micros()); 
-  Serial.print(": "); 
-  Serial.println(digitalRead(interrupt_pin));
+  digitalWrite(led, digitalRead(interrupt_pin));
 }
 
 

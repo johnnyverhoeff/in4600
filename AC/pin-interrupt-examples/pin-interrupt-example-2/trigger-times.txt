@@ -1,0 +1,21 @@
+When led is OFF and cap. is IN series :
+	- period: 10 ms				
+	- time for on pulse: 0.750 ms
+
+When led is ON and cap. is IN series :
+	- period: 10 ms				
+	- time for on pulse: 1.2 ms
+
+
+
+
+
+
+
+When led is OFF and cap. is NOT IN series :
+	- period: 10 ms				
+	- time for on pulse: 0.750 ms
+
+When led is ON and cap. is NOT IN series :
+	- period: 10 ms				
+	- time for on pulse: 0.750 ms
