@@ -21,6 +21,10 @@ volatile uint16_t m_seq_idx;
 
 volatile uint8_t timer_enable = 0;
 
+volatile uint8_t done_modulating_one_seq = 0;
+
+volatile uint8_t modulate_enable_flag = 0;
+
 
 
 /*
@@ -76,7 +80,7 @@ void setup() {
   pinMode(modulate_enable, INPUT);
 
   pinMode(led, OUTPUT);
-  digitalWrite(led, LOW);
+  digitalWrite(led, HIGH);
 
   pinMode(cap_bypass_pin, OUTPUT);
   digitalWrite(cap_bypass_pin, LOW);
@@ -113,11 +117,13 @@ void setup() {
   TCCR1B |= (1 << CS12);    // 256 prescaler 
   disable_timer();
   
-  //digitalWrite(cap_bypass_pin, HIGH);
-  
-  interrupts();             // enable all interrupts
-  
+
+        
+  modulate_enable_flag = 0;
   attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
+  
+
+  interrupts();       
 
 }
 
@@ -141,6 +147,7 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
 
     if (m_seq_idx >= L) {
       m_seq_idx = 0;
+      done_modulating_one_seq++;
     }
   } else {
     digitalWrite(led, HIGH);
@@ -150,31 +157,70 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
 
 
 void isr_change(void) {
-
   
-  int state = digitalRead(modulate_enable);
-  
-  if (state == 1) {
-    //Serial.println("s1");
 
-    
-    modulate_idx = 0;
-    disable_timer();
+  if (modulate_enable_flag == 1) {
 
-    
-    digitalWrite(led, HIGH);
+    delayMicroseconds(750); // debouncing effect...
   
+    int state = digitalRead(modulate_enable);
+  
+    if (state == 1) {
+      //Serial.println("s1");
+  
+      
+      modulate_idx = 0;
+      disable_timer();
+  
+      
+      digitalWrite(led, HIGH);
     
+      
+    } else {
+      //delayMicroseconds(1100); // less than 1 ms seems to work because that is the symbol length
+      //Serial.println("s0");
+      enable_timer();
+    }
   } else {
-    //delayMicroseconds(1100); // less than 1 ms seems to work because that is the symbol length
-    //Serial.println("s0");
-    enable_timer();
+    
+    /*int state = digitalRead(modulate_enable);
+    //delayMicroseconds(1000); // debouncing effect...
+    
+    if (state == 1) {
+      digitalWrite(led, LOW);
+
+    } else {
+      digitalWrite(led, HIGH);
+    }*/
+
+    digitalWrite(led, HIGH);
   }
 }
 
 
 void loop() {  
+  if (Serial.available() > 0) {
+    Serial.print("Received: "); Serial.println(Serial.read());
+    
+    while (Serial.available() > 0) {
+      Serial.println(Serial.read());
+    }
 
+    digitalWrite(cap_bypass_pin, HIGH);
+    delay(40);
+
+    //attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
+    modulate_enable_flag = 1;
+  }
+
+  if (done_modulating_one_seq >= 10) {
+    //detachInterrupt(digitalPinToInterrupt(modulate_enable));
+    modulate_enable_flag = 0;
+    
+    digitalWrite(cap_bypass_pin, LOW);
+    done_modulating_one_seq = 0;
+    Serial.println("DONE");
+  }
 }
 
 

@@ -1,0 +1,7 @@
+
+1. Decide whether to modulate or not, based on a probability or time.
+
+2. Bypass the capacitor with the opto-triac.
+2.1 Wait until you are sure a zero crossing has been made by the 230v sine wave, for example by waiting > 1 cycle (i.e. 20 ms).
+
+3. 

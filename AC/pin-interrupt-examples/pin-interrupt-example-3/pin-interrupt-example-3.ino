@@ -13,7 +13,7 @@ void setup() {
 
 void loop() {
 
-  digitalWrite(led, digitalRead(interrupt_pin));
+  digitalWrite(led, 1 ^ digitalRead(interrupt_pin));
 }
 
 
