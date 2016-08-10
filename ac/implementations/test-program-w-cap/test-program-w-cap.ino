@@ -25,6 +25,8 @@ volatile uint8_t done_modulating_one_seq = 0;
 
 volatile uint8_t modulate_enable_flag = 0;
 
+volatile unsigned long modulate_start_time = 0;
+
 
 
 /*
@@ -84,6 +86,7 @@ void setup() {
 
   pinMode(cap_bypass_pin, OUTPUT);
   digitalWrite(cap_bypass_pin, LOW);
+  //digitalWrite(cap_bypass_pin, HIGH);
 
   m_seq = new uint8_t[L];
   m_seq_idx = 0;
@@ -120,6 +123,8 @@ void setup() {
 
         
   modulate_enable_flag = 0;
+  modulate_start_time = 0;
+  
   attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
   
 
@@ -135,7 +140,7 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
   
   //Serial.println("a");
   
-  if (modulate_idx < 4) {
+  if (modulate_idx < 6) {
     
     digitalWrite(led, m_seq[m_seq_idx]);
     
@@ -148,9 +153,20 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
     if (m_seq_idx >= L) {
       m_seq_idx = 0;
       done_modulating_one_seq++;
+
+      if (done_modulating_one_seq >= 20) {
+        //detachInterrupt(digitalPinToInterrupt(modulate_enable));
+        modulate_enable_flag = 0;
+        
+        digitalWrite(cap_bypass_pin, LOW);
+        done_modulating_one_seq = 0;
+        Serial.println("DONE");
+      }
+      
     }
   } else {
     digitalWrite(led, HIGH);
+    disable_timer();
   }
  
 }
@@ -161,7 +177,7 @@ void isr_change(void) {
 
   if (modulate_enable_flag == 1) {
 
-    delayMicroseconds(750); // debouncing effect...
+    //delayMicroseconds(750); // debouncing effect...
   
     int state = digitalRead(modulate_enable);
   
@@ -181,6 +197,8 @@ void isr_change(void) {
       //Serial.println("s0");
       enable_timer();
     }
+
+    
   } else {
     
     /*int state = digitalRead(modulate_enable);
@@ -199,28 +217,38 @@ void isr_change(void) {
 
 
 void loop() {  
-  if (Serial.available() > 0) {
-    Serial.print("Received: "); Serial.println(Serial.read());
-    
-    while (Serial.available() > 0) {
-      Serial.println(Serial.read());
-    }
 
-    digitalWrite(cap_bypass_pin, HIGH);
-    delay(40);
-
-    //attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
-    modulate_enable_flag = 1;
-  }
-
-  if (done_modulating_one_seq >= 10) {
-    //detachInterrupt(digitalPinToInterrupt(modulate_enable));
+  if ((digitalRead(cap_bypass_pin) == 1) && (millis() - modulate_start_time > 60000)) {
+    Serial.println("TIME-OUT DETECTED");
     modulate_enable_flag = 0;
-    
+    modulate_start_time = 0;
     digitalWrite(cap_bypass_pin, LOW);
-    done_modulating_one_seq = 0;
-    Serial.println("DONE");
+    
   }
+  
+  if (modulate_enable_flag == 0) {
+    if (Serial.available() > 0) {
+      Serial.print("Received: "); Serial.println(Serial.read());
+      
+      while (Serial.available() > 0) {
+        Serial.println(Serial.read());
+      }
+  
+      noInterrupts();
+  
+      digitalWrite(cap_bypass_pin, HIGH);
+      delay(40);
+  
+      //attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
+      modulate_enable_flag = 1;
+
+      modulate_start_time = millis();
+  
+      interrupts();
+    }
+  }
+
+  
 }
 
 
