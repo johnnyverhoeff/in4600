@@ -6,9 +6,18 @@
 
 #define modulate_enable 3
 
-#define TIME_TO_MODULATE 8 // in ms
-#define TIMER_FREQ 1000 //Hz
-#define MODULATE_TIMES (TIME_TO_MODULATE * (TIMER_FREQ / 1000) - 1)
+#define NUM_OF_TIMES_CHECK_TRIGGER_SIGNAL 100
+
+#define HARDCODE_MODULATE_TIME
+// define this for hardcoded 7 ms, else for auto-detection
+
+uint32_t  time_to_modulate_per_period,
+          modulate_times_per_period;
+
+const uint32_t timer_freq = 15000; //Hz
+
+
+
 
 uint16_t timer1_counter;
 
@@ -77,6 +86,65 @@ void m_seq_create(uint8_t *poly, uint8_t n, uint16_t start_state, uint8_t *m_seq
   
 }
 
+uint32_t get_min_trigger_low_time(void) {
+  uint32_t  avg_signal_low_time, 
+          min_signal_low_time = 10000,
+          max_signal_low_time = 0,
+          
+          avg_signal_high_time,
+          min_signal_high_time = 10000,
+          max_signal_high_time = 0;
+          
+  for (int i = 0; i < NUM_OF_TIMES_CHECK_TRIGGER_SIGNAL; i++) {
+    
+    while (digitalRead(modulate_enable) == 0); //wait while signal is low
+    while (digitalRead(modulate_enable) == 1); //wait while signal is high
+    
+    //signal is low.
+  
+    uint32_t begin_time_signal_low = micros();
+  
+    while (digitalRead(modulate_enable) == 0); //wait while signal is low
+  
+    uint32_t end_time_signal_low = micros();
+    uint32_t begin_time_signal_high = end_time_signal_low;
+  
+    while (digitalRead(modulate_enable) == 1); //wait while signal is high
+  
+    uint32_t end_time_signal_high = micros();
+
+
+    uint32_t signal_low_time = end_time_signal_low - begin_time_signal_low;
+    uint32_t signal_high_time = end_time_signal_high - begin_time_signal_high;
+
+    min_signal_low_time = min(min_signal_low_time, signal_low_time);
+    max_signal_low_time = max(max_signal_low_time, signal_low_time);
+
+    min_signal_high_time = min(min_signal_high_time, signal_high_time);
+    max_signal_high_time = max(max_signal_high_time, signal_high_time);
+
+
+    uint32_t max_period_time = min_signal_low_time + max_signal_high_time;
+
+    if (max_period_time > 10000) {
+      //Serial.print("Sanity check failed...");
+      Serial.println(max_period_time);
+      return get_min_trigger_low_time();
+    }
+  
+    //Serial.print("Low time: ");
+    //Serial.println(signal_low_time);
+  
+    //Serial.print("High time: ");
+    //Serial.println(signal_high_time);
+
+  }
+
+  return min_signal_low_time;
+}
+
+
+
 void enable_timer() {
   TCNT1 = 0;
   TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
@@ -86,11 +154,36 @@ void disable_timer() {
   TIMSK1 &= ~(1 << TOIE1); 
 }
 
+void init_timer() {
+  // initialize timer1 -
+  noInterrupts();           // disable all interrupts
+  cli();
+  TCCR1A = 0;
+  TCCR1B = 0;
+
+  // Set timer1_counter to the correct value for our interrupt interval
+  //timer1_counter = 64911;   // preload timer 65536-16MHz/256/100Hz
+  //timer1_counter = 64286;   // preload timer 65536-16MHz/256/50Hz
+  //timer1_counter = 34286;   // preload timer 65536-16MHz/256/2Hz
+
+  timer1_counter = 65536 - (16 * 1000000 / 256 / timer_freq);
+
+  //Serial.println(TIMER_FREQ);
+  //Serial.println(timer1_counter);
+
+ 
+  TCNT1 = timer1_counter;   // preload timer
+  TCCR1B |= (1 << CS12);    // 256 prescaler 
+  disable_timer();
+  
+  
+}
+
 
 
 void setup() { 
 
-  delay(1000);
+  //delay(1000);
   Serial.begin(250000);
 
   pinMode(modulate_enable, INPUT);
@@ -98,10 +191,42 @@ void setup() {
   pinMode(ADC_CS, OUTPUT);
   digitalWrite(ADC_CS, HIGH);
 
+  pinMode(30, OUTPUT);
+  pinMode(31, OUTPUT);
+
+  digitalWrite(30, LOW);
+  digitalWrite(31, LOW);
+
+
+#ifdef HARDCODE_MODULATE_TIME
+
+  time_to_modulate_per_period = 7000; //us
+
+#else
+
+  uint32_t min_trigger_low_time = get_min_trigger_low_time();
+
+  time_to_modulate_per_period = min(7000 /* us */, min_trigger_low_time);
+  //Serial.print("min_trigger_low_time: "); Serial.println(min_trigger_low_time);
+
+#endif
+
+  modulate_times_per_period = time_to_modulate_per_period * timer_freq / 1000000 - 1;
+
+
+  /*
+  Serial.print("time_to_modulate_per_period: "); Serial.println(time_to_modulate_per_period);
+  Serial.print("modulate_times_per_period: "); Serial.println(modulate_times_per_period);*/
+
+
+
+  
+
   SPI.begin();
-  SPI.setBitOrder(MSBFIRST);
+  /*SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE0);
-  SPI.setClockDivider(SPI_CLOCK_DIV8);
+  SPI.setClockDivider(SPI_CLOCK_DIV64);*/
+  SPI.beginTransaction(SPISettings(500000, MSBFIRST, SPI_MODE0));
 
   //Serial.println("SPI started...");
 
@@ -118,35 +243,15 @@ void setup() {
   m_seq_idx = 0;
   m_seq_create(poly, n, 1, m_seq);
 
-    for (int i = 0; i < L; i++) {
+  /*for (int i = 0; i < L; i++) {
     Serial.print(m_seq[i]); Serial.print(" ");
   }
-  Serial.println();
+  Serial.println();*/
 
 
   sample_idx = 0;
 
-  // initialize timer1 -
-  noInterrupts();           // disable all interrupts
-  TCCR1A = 0;
-  TCCR1B = 0;
-
-  // Set timer1_counter to the correct value for our interrupt interval
-  //timer1_counter = 64911;   // preload timer 65536-16MHz/256/100Hz
-  //timer1_counter = 64286;   // preload timer 65536-16MHz/256/50Hz
-  //timer1_counter = 34286;   // preload timer 65536-16MHz/256/2Hz
-
-  timer1_counter = 65536 - (16 * 1000000 / 256 / TIMER_FREQ);
-
-  //Serial.println(TIMER_FREQ);
-  //Serial.println(timer1_counter);
-
- 
-  TCNT1 = timer1_counter;   // preload timer
-  TCCR1B |= (1 << CS12);    // 256 prescaler 
-  disable_timer();
-  
-  
+  init_timer();
 
   attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
 
@@ -156,6 +261,7 @@ void setup() {
 
 
   interrupts();             // enable all interrupts
+  sei();
 }
 
 
@@ -196,11 +302,13 @@ uint16_t get_ground_adc_readings(void) {
 
 
 
-
+unsigned long start_time, stop_time, start_time2, stop_time2 = 0;
 
 
 // with DIV8 -> ~44 us
-// with DIV8 & MMIO -> 20 us 
+// with DIV8 & direct io -> 20 us 
+// with DIV32 -> 60 us -> 16 kHz
+// with DIV64 -> 110us -> 
 uint16_t readADC(uint8_t channel) {
 
   //digitalWrite(ADC_CS, LOW);
@@ -221,10 +329,22 @@ uint16_t readADC(uint8_t channel) {
   return (((rx1 & 0x0F) << 8) | rx2);
 }
 
+uint8_t flag = 0;
+
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
 
-  if (sample_idx < MODULATE_TIMES) {
+  if (flag == 1) {
+    flag = 0;
+    PORTC = PORTC | (1 << 7);
+    
+  } else {
+    flag = 1;
+    PORTC = PORTC & ~(1 << 7); // pin 30
+  }
+
+
+  if (sample_idx < modulate_times_per_period) {
 
     uint16_t read_value = readADC(0);
     uint16_t scaled_value = 0;
@@ -250,6 +370,9 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
     if (adc_idx >= ADC_BUFFER_SIZE) {
       adc_idx = 0;
       adc_buffer_full = 1;
+      //Serial.print("T: ");
+      //Serial.println(micros() - start_time);
+      start_time = micros();
       //noInterrupts();
     }
   }
@@ -264,21 +387,43 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
 void isr_change(void) {
   int state = digitalRead(modulate_enable);
 
+  /*if (state == 1) {
+    PORTC = PORTC & ~(1 << 6); // pin 31
+  } else {
+    PORTC = PORTC | (1 << 6);
+  }*/
+  
+
   //Serial.println(state);
   //Serial.println();
 
   if (state == 1) {
     sample_idx = 0;
-    disable_timer();
+    
+    //disable_timer();
+    TIMSK1 &= ~(1 << TOIE1); 
+    PORTC = PORTC & ~(1 << 6); // pin 30
   } else {
-    enable_timer();
+    
+    //enable_timer();
+    TCNT1 = 0;
+    TIMSK1 |= (1 << TOIE1);
+    PORTC = PORTC | (1 << 6);
   }
 
 }
 
 
+int freeRam () {
+  extern int __heap_start, *__brkval;
+  int v;
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+}
 
 
+
+
+uint16_t times_led_detected = 0;
 
 void loop() {
 
@@ -299,13 +444,47 @@ void loop() {
   
 
 
+  //start_time = micros();
+
+
+  /*if (Serial.available() > 0) {
+
+     
+    while (Serial.available() > 0) {
+      Serial.println(Serial.read());
+      //Serial.read();
+    }
+
+    noInterrupts();
+    cli();
+
+    init_timer();
+
+    interrupts();
+    sei();
+
+      
+  }*/
+
+  
+
 
   
   if (adc_buffer_full == 1) {
     noInterrupts();
+    cli();
 
-    //long start_time = micros();
+    
+     // pin 30
+    //PORTC = PORTC | (1 << 7);
 
+    /*stop_time = micros();
+    Serial.print("T1: ");
+    Serial.println(stop_time - start_time);*/
+
+    
+      
+    
     
 
     uint16_t sample_min = find_min(adc_buffer, ADC_BUFFER_SIZE);
@@ -326,6 +505,11 @@ void loop() {
       float corr_sum = 0;
       float signal_sum = 0;
 
+
+      //start_time2 = micros();
+
+      //PORTC = PORTC | (1 << 6);
+        
       for (int i = 0; i < L; i++) {
 
         float scaled_sample = ((float)(adc_buffer[i + offset] - sample_min)) / ((float)sample_max);
@@ -347,15 +531,45 @@ void loop() {
 
       float normalized_l_corr = (-2 * corr_sum) - calc_num_of_tx;
       Serial.println(normalized_l_corr);
+      
+      //PORTC ^= (1 << 6);
+
+      if (normalized_l_corr >= ((float)L/2)) {
+        times_led_detected++;
+      }
+
+      /*if (normalized_l_corr >= ((float)L/2)) {
+        //Serial.println("D");
+        PORTC = PORTC | (1 << 5);
+      } else {
+        
+        PORTC = PORTC & ~(1 << 5);
+      }*/
+
+
+      //PORTC = PORTC & ~(1 << 6);
+      /*stop_time2 = micros();
+
+      Serial.print("T2: ");
+      Serial.println(stop_time2 - start_time2);*/
 
     }
 
+    //stop_time = micros();
+
+    //Serial.println(times_led_detected);
+    times_led_detected = 0;
+
+    //Serial.println(stop_time - start_time);
 
 
     
-    //long stop_time = micros();
-    //Serial.println(stop_time - start_time);
-    //Serial.println((stop_time - start_time) / (ADC_BUFFER_SIZE / L));
+    //PORTC = PORTC & ~(1 << 7);
+
+    
+    
+
+
 
 
     /*uint16_t *y = new uint16_t[ADC_BUFFER_SIZE];
@@ -394,11 +608,14 @@ void loop() {
     }
     Serial.println("-------------");*/
 
-    
+    //Serial.println(freeRam());
 
     adc_buffer_full = 0;
     sample_idx = 0;
+
+    //start_time = micros();
     interrupts();
+    sei();
     
   }
 

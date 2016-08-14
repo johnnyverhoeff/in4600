@@ -1,11 +1,30 @@
+
+#define CONT_TX 
+// define this for continious modulation, 
+//undefine this to modulate for every Serial character
+
+#define NUM_OF_MODULATION_SEQUENCES 1
+
+#define NUM_OF_TIMES_CHECK_TRIGGER_SIGNAL 100
+
+#define HARDCODE_MODULATE_TIME
+// define this for hardcoded 7 ms, else for auto-detection
+
+
 #define modulate_enable 3
 #define led 13
 
-#define TIME_TO_MODULATE 8 // in ms
-#define TIMER_FREQ 1000 //Hz
-#define MODULATE_TIMES (TIME_TO_MODULATE * (TIMER_FREQ / 1000) - 1)
+uint32_t  time_to_modulate_per_period,
+          modulate_times_per_period;
+
+const uint32_t timer_freq = 15000; //Hz
+          
 
 volatile uint16_t timer1_counter;
+
+
+
+
 
 volatile uint8_t modulate_idx = 0;
 
@@ -64,6 +83,62 @@ void m_seq_create(uint8_t *poly, uint8_t n, uint16_t start_state, uint8_t *m_seq
   
 }
 
+uint32_t get_min_trigger_low_time(void) {
+  uint32_t  avg_signal_low_time, 
+          min_signal_low_time = 10000,
+          max_signal_low_time = 0,
+          
+          avg_signal_high_time,
+          min_signal_high_time = 10000,
+          max_signal_high_time = 0;
+          
+  for (int i = 0; i < NUM_OF_TIMES_CHECK_TRIGGER_SIGNAL; i++) {
+    
+    while (digitalRead(modulate_enable) == 0); //wait while signal is low
+    while (digitalRead(modulate_enable) == 1); //wait while signal is high
+    
+    //signal is low.
+  
+    uint32_t begin_time_signal_low = micros();
+  
+    while (digitalRead(modulate_enable) == 0); //wait while signal is low
+  
+    uint32_t end_time_signal_low = micros();
+    uint32_t begin_time_signal_high = end_time_signal_low;
+  
+    while (digitalRead(modulate_enable) == 1); //wait while signal is high
+  
+    uint32_t end_time_signal_high = micros();
+
+
+    uint32_t signal_low_time = end_time_signal_low - begin_time_signal_low;
+    uint32_t signal_high_time = end_time_signal_high - begin_time_signal_high;
+
+    min_signal_low_time = min(min_signal_low_time, signal_low_time);
+    max_signal_low_time = max(max_signal_low_time, signal_low_time);
+
+    min_signal_high_time = min(min_signal_high_time, signal_high_time);
+    max_signal_high_time = max(max_signal_high_time, signal_high_time);
+
+
+    uint32_t max_period_time = min_signal_low_time + max_signal_high_time;
+
+    if (max_period_time > 10000) {
+      Serial.print("Sanity check failed...");
+      Serial.println(max_period_time);
+      return get_min_trigger_low_time();
+    }
+  
+    //Serial.print("Low time: ");
+    //Serial.println(signal_low_time);
+  
+    //Serial.print("High time: ");
+    //Serial.println(signal_high_time);
+
+  }
+
+  return min_signal_low_time;
+}
 
 void enable_timer() {
   TCNT1 = 0;
@@ -80,7 +155,32 @@ void setup() {
   pinMode(modulate_enable, INPUT);
 
   pinMode(led, OUTPUT);
+  digitalWrite(led, LOW);
+
+#ifdef HARDCODE_MODULATE_TIME
+
+  time_to_modulate_per_period = 7000; //us
+  
+#else 
+
+  uint32_t min_trigger_low_time = get_min_trigger_low_time();
+
+  time_to_modulate_per_period = min(7000 /* us */, min_trigger_low_time);
+
+  Serial.print("min_trigger_low_time: "); Serial.println(min_trigger_low_time);
+  
+#endif
+
+  
+  modulate_times_per_period = time_to_modulate_per_period * timer_freq / 1000000 - 1;
+
+  Serial.print("time_to_modulate_per_period: "); Serial.println(time_to_modulate_per_period);
+  Serial.print("modulate_times_per_period: "); Serial.println(modulate_times_per_period);
+
+  
   digitalWrite(led, HIGH);
+
+  
 
   m_seq = new uint8_t[L];
   m_seq_idx = 0;
@@ -91,6 +191,7 @@ void setup() {
   }
   Serial.println();
 */
+
   modulate_idx = 0;
 
 
@@ -99,25 +200,16 @@ void setup() {
   TCCR1A = 0;
   TCCR1B = 0;
 
-  // Set timer1_counter to the correct value for our interrupt interval
-  //timer1_counter = 64911;   // preload timer 65536-16MHz/256/100Hz
-  //timer1_counter = 64286;   // preload timer 65536-16MHz/256/50Hz
-  //timer1_counter = 34286;   // preload timer 65536-16MHz/256/2Hz
-
-  timer1_counter =  65536 - (16 * 1000000 / 256 / TIMER_FREQ);
-
-  //Serial.println(TIMER_FREQ);
-  //Serial.println(timer1_counter);
-
+  timer1_counter =  65536 - (16 * 1000000 / 256 / timer_freq);
  
   TCNT1 = timer1_counter;   // preload timer
   TCCR1B |= (1 << CS12);    // 256 prescaler 
   disable_timer();
-  
-
-        
+     
   modulate_enable_flag = 0;
   
+  
+
   attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
 
   interrupts();       
@@ -125,19 +217,11 @@ void setup() {
 
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
   TCNT1 = timer1_counter;   // preload timer
-
-  //Serial.println(micros());
-
   
-  //Serial.println("a");
-  
-  if (modulate_idx < MODULATE_TIMES) {
+  if (modulate_idx < modulate_times_per_period) {
     
     digitalWrite(led, m_seq[m_seq_idx]);
-    
-    //Serial.print(m_seq[m_seq_idx]); Serial.print(" " );
-    //Serial.println(m_seq[m_seq_idx]);
-    
+
     m_seq_idx++;
     modulate_idx++;
 
@@ -145,19 +229,17 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
       m_seq_idx = 0;
       done_modulating_one_seq++;
 
-      if (done_modulating_one_seq >= 20) {
+      if (done_modulating_one_seq >= NUM_OF_MODULATION_SEQUENCES) {
         modulate_enable_flag = 0;
         
         done_modulating_one_seq = 0;
         //Serial.println("DONE");
       }
-      
     }
   } else {
     digitalWrite(led, HIGH);
     disable_timer();
   }
- 
 }
 
 
@@ -167,48 +249,43 @@ void isr_change(void) {
     int state = digitalRead(modulate_enable);
   
     if (state == 1) {
-      //Serial.println("s1");
-  
-      
+
       modulate_idx = 0;
       disable_timer();
   
-      
       digitalWrite(led, HIGH);
     
-      
     } else {
-      //delayMicroseconds(1100); // less than 1 ms seems to work because that is the symbol length
-      //Serial.println("s0");
       enable_timer();
-    }
-
-    
+    } 
   } else {
-
     digitalWrite(led, HIGH);
   }
-}
+} 
 
 
 void loop() {  
-  //modulate_enable_flag = 1;
+
+#ifdef CONT_TX
+  
+  modulate_enable_flag = 1;
+
+#else 
+
   if (modulate_enable_flag == 0) {
     if (Serial.available() > 0) {
       Serial.print("Received: "); Serial.println(Serial.read());
-      
+     
       while (Serial.available() > 0) {
         Serial.println(Serial.read());
       }
-  
-
+ 
       modulate_enable_flag = 1;
-
-
     }
   }
 
-  
+#endif
+
 }
 
 
