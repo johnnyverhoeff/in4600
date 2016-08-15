@@ -7,7 +7,7 @@
 
 #define NUM_OF_TIMES_CHECK_TRIGGER_SIGNAL 100
 
-#define HARDCODE_MODULATE_TIME
+//#define HARDCODE_MODULATE_TIME
 // define this for hardcoded 7 ms, else for auto-detection
 
 
@@ -17,18 +17,21 @@
 uint32_t  time_to_modulate_per_period,
           modulate_times_per_period;
 
-const uint32_t timer_freq = 15000; //Hz
+const uint32_t timer_freq = 10000; //Hz
           
 
 volatile uint16_t timer1_counter;
 
 
-
+volatile uint32_t loop_counter = 0;
 
 
 volatile uint8_t modulate_idx = 0;
 
 uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
+//uint8_t poly[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
+
+//uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
 
 uint8_t n = sizeof(poly) / sizeof(uint8_t) - 1;
 uint16_t L = (1 << n) - 1;
@@ -83,12 +86,12 @@ void m_seq_create(uint8_t *poly, uint8_t n, uint16_t start_state, uint8_t *m_seq
   
 }
 
-uint32_t get_min_trigger_low_time(void) {
-  uint32_t  avg_signal_low_time, 
+uint32_t get_avg_trigger_low_time(void) {
+  uint32_t  avg_signal_low_time = 0, 
           min_signal_low_time = 10000,
           max_signal_low_time = 0,
           
-          avg_signal_high_time,
+          avg_signal_high_time = 0,
           min_signal_high_time = 10000,
           max_signal_high_time = 0;
           
@@ -110,7 +113,6 @@ uint32_t get_min_trigger_low_time(void) {
   
     uint32_t end_time_signal_high = micros();
 
-
     uint32_t signal_low_time = end_time_signal_low - begin_time_signal_low;
     uint32_t signal_high_time = end_time_signal_high - begin_time_signal_high;
 
@@ -120,24 +122,22 @@ uint32_t get_min_trigger_low_time(void) {
     min_signal_high_time = min(min_signal_high_time, signal_high_time);
     max_signal_high_time = max(max_signal_high_time, signal_high_time);
 
-
-    uint32_t max_period_time = min_signal_low_time + max_signal_high_time;
-
-    if (max_period_time > 10000) {
-      Serial.print("Sanity check failed...");
-      Serial.println(max_period_time);
-      return get_min_trigger_low_time();
-    }
-  
-    //Serial.print("Low time: ");
-    //Serial.println(signal_low_time);
-  
-    //Serial.print("High time: ");
-    //Serial.println(signal_high_time);
+    avg_signal_low_time = (avg_signal_low_time + (min_signal_low_time + max_signal_low_time) / 2) / 2;
+    avg_signal_high_time = (avg_signal_high_time + (min_signal_high_time + max_signal_high_time) / 2) / 2;
 
   }
 
-  return min_signal_low_time;
+  uint32_t avg_period_time = avg_signal_low_time + avg_signal_high_time;
+
+  if (avg_period_time > 10000) {
+    Serial.print("Sanity check failed...");
+    Serial.println(avg_period_time);
+    return get_avg_trigger_low_time();
+  }
+
+  //Serial.println(avg_signal_low_time);
+
+  return avg_signal_low_time;
 }
 
 void enable_timer() {
@@ -148,6 +148,18 @@ void enable_timer() {
 void disable_timer() {
   TIMSK1 &= ~(1 << TOIE1); 
 }
+
+void init_timer() {
+  // initialize timer1 -
+  TCCR1A = 0;
+  TCCR1B = 0;
+
+  timer1_counter = 65536 - (16 * 1000000 / 256 / timer_freq);
+
+  TCNT1 = timer1_counter;   // preload timer
+  TCCR1B |= (1 << CS12);    // 256 prescaler 
+}
+
 
 void setup() {
   Serial.begin(250000);
@@ -163,11 +175,11 @@ void setup() {
   
 #else 
 
-  uint32_t min_trigger_low_time = get_min_trigger_low_time();
+  uint32_t avg_trigger_low_time = get_avg_trigger_low_time();
 
-  time_to_modulate_per_period = min(7000 /* us */, min_trigger_low_time);
+  time_to_modulate_per_period = min(7000 /* us */, avg_trigger_low_time);
 
-  Serial.print("min_trigger_low_time: "); Serial.println(min_trigger_low_time);
+  Serial.print("avg_trigger_low_time: "); Serial.println(avg_trigger_low_time);
   
 #endif
 
@@ -192,18 +204,12 @@ void setup() {
   Serial.println();
 */
 
+  noInterrupts();
+  cli();
+
   modulate_idx = 0;
 
-
-  // initialize timer1 -
-  noInterrupts();           // disable all interrupts
-  TCCR1A = 0;
-  TCCR1B = 0;
-
-  timer1_counter =  65536 - (16 * 1000000 / 256 / timer_freq);
- 
-  TCNT1 = timer1_counter;   // preload timer
-  TCCR1B |= (1 << CS12);    // 256 prescaler 
+  init_timer();
   disable_timer();
      
   modulate_enable_flag = 0;
@@ -213,6 +219,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(modulate_enable), isr_change, CHANGE );
 
   interrupts();       
+  sei();
 }
 
 ISR(TIMER1_OVF_vect) {      // interrupt service routine 
@@ -265,6 +272,12 @@ void isr_change(void) {
 
 
 void loop() {  
+
+  // to make sure the timer wont fail...
+  loop_counter++;
+  if (loop_counter % 10000 == 0) {
+    init_timer();
+  }
 
 #ifdef CONT_TX
   
