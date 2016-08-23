@@ -98,14 +98,14 @@ void m_seq_create(uint8_t *poly, uint8_t n, uint16_t start_state, uint8_t *m_seq
   
 }
 
-uint32_t get_avg_trigger_low_time(void) {
-  uint32_t  avg_signal_low_time = 0, 
-          min_signal_low_time = 10000,
-          max_signal_low_time = 0,
+uint32_t get_avg_modulate_enable_time(void) {
+  uint32_t  avg_modulate_enable_time = 0, 
+          min_modulate_enable_time = 10000,
+          max_modulate_enable_time = 0,
           
-          avg_signal_high_time = 0,
-          min_signal_high_time = 10000,
-          max_signal_high_time = 0;
+          avg_modulate_disable_time = 0,
+          min_modulate_disable_time = 10000,
+          max_modulate_disable_time = 0;
           
   for (int i = 0; i < NUM_OF_TIMES_CHECK_TRIGGER_SIGNAL; i++) {
     
@@ -113,43 +113,41 @@ uint32_t get_avg_trigger_low_time(void) {
     while (digitalRead(modulate_enable) == !MODULATE_ENABLE_TRIGGER_STATE); //wait while signal is high
     
     //signal is low.
-  
-    uint32_t begin_time_signal_low = micros();
+    
+    uint32_t begin_time_modulate_enable = micros();
   
     while (digitalRead(modulate_enable) == MODULATE_ENABLE_TRIGGER_STATE); //wait while signal is low
   
-    uint32_t end_time_signal_low = micros();
-    uint32_t begin_time_signal_high = end_time_signal_low;
+    uint32_t end_time_modulate_enable = micros();
+    uint32_t begin_time_modulate_disable = end_time_modulate_enable;
   
     while (digitalRead(modulate_enable) == !MODULATE_ENABLE_TRIGGER_STATE); //wait while signal is high
   
-    uint32_t end_time_signal_high = micros();
+    uint32_t end_time_modulate_disable = micros();
 
-    uint32_t signal_low_time = end_time_signal_low - begin_time_signal_low;
-    uint32_t signal_high_time = end_time_signal_high - begin_time_signal_high;
+    uint32_t modulate_enable_time = end_time_modulate_enable - begin_time_modulate_enable;
+    uint32_t modulate_disable_time = end_time_modulate_disable - begin_time_modulate_disable;
 
-    min_signal_low_time = min(min_signal_low_time, signal_low_time);
-    max_signal_low_time = max(max_signal_low_time, signal_low_time);
+    min_modulate_enable_time = min(min_modulate_enable_time, modulate_enable_time);
+    max_modulate_enable_time = max(max_modulate_enable_time, modulate_enable_time);
 
-    min_signal_high_time = min(min_signal_high_time, signal_high_time);
-    max_signal_high_time = max(max_signal_high_time, signal_high_time);
+    min_modulate_disable_time = min(min_modulate_disable_time, modulate_disable_time);
+    max_modulate_disable_time = max(max_modulate_disable_time, modulate_disable_time);
 
-    avg_signal_low_time = (avg_signal_low_time + (min_signal_low_time + max_signal_low_time) / 2) / 2;
-    avg_signal_high_time = (avg_signal_high_time + (min_signal_high_time + max_signal_high_time) / 2) / 2;
+    avg_modulate_enable_time = (avg_modulate_enable_time + (min_modulate_enable_time + max_modulate_enable_time) / 2) / 2;
+    avg_modulate_disable_time = (avg_modulate_disable_time + (min_modulate_disable_time + max_modulate_disable_time) / 2) / 2;
 
   }
 
-  uint32_t avg_period_time = avg_signal_low_time + avg_signal_high_time;
+  uint32_t avg_period_time = avg_modulate_enable_time + avg_modulate_disable_time;
 
   if (avg_period_time > 10100) {
     Serial.print("Sanity check failed...");
     Serial.println(avg_period_time);
-    return get_avg_trigger_low_time();
+    return get_avg_modulate_enable_time();
   }
 
-  //Serial.println(avg_signal_low_time);
-
-  return avg_signal_low_time;
+  return avg_modulate_enable_time;
 }
 
 void enable_timer() {
@@ -187,11 +185,11 @@ void setup() {
   
 #else 
 
-  uint32_t avg_trigger_low_time = get_avg_trigger_low_time();
+  uint32_t avg_modulate_enable_time = get_avg_modulate_enable_time();
 
-  time_to_modulate_per_period = min(7000 /* us */, avg_trigger_low_time);
+  time_to_modulate_per_period = min(7000 /* us */, avg_modulate_enable_time);
 
-  Serial.print("avg_trigger_low_time: "); Serial.println(avg_trigger_low_time);
+  Serial.print("avg_modulate_enable_time: "); Serial.println(avg_modulate_enable_time);
   
 #endif
 
@@ -239,11 +237,7 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
   
   if (modulate_idx < modulate_times_per_period) {
 
-    if (m_seq[m_seq_idx] == LED_ON) {
-      digitalWrite(led, LED_OFF);
-    } else {
-      digitalWrite(led, LED_ON);
-    }
+    digitalWrite(led, !(m_seq[m_seq_idx] ^ LED_ON));
 
     m_seq_idx++;
     modulate_idx++;
