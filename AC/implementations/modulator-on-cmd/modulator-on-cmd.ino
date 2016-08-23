@@ -10,6 +10,12 @@
 //#define HARDCODE_MODULATE_TIME
 // define this for hardcoded 7 ms, else for auto-detection
 
+#define MODULATE_ENABLE_TRIGGER_STATE 0
+// if 1, modulation is allowed at trigger input HIGH
+// else if 0, modulation is allowed at trigger input LOW
+// 0 for 'old' TIP50 current source (working example).
+// 1 for 'new' BUZ80 current source (WIP).
+
 
 #define modulate_enable 3
 #define led 13
@@ -255,16 +261,19 @@ void isr_change(void) {
 
     int state = digitalRead(modulate_enable);
   
-    if (state == 1) {
-
+    if (state == MODULATE_ENABLE_TRIGGER_STATE) {
+      
+      enable_timer();
+    
+    } else {
+      
       modulate_idx = 0;
       disable_timer();
   
       digitalWrite(led, HIGH);
-    
-    } else {
-      enable_timer();
+      
     } 
+    
   } else {
     digitalWrite(led, HIGH);
   }
