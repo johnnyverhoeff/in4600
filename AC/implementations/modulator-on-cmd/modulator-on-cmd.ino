@@ -10,11 +10,17 @@
 //#define HARDCODE_MODULATE_TIME
 // define this for hardcoded 7 ms, else for auto-detection
 
-#define MODULATE_ENABLE_TRIGGER_STATE 0
+#define MODULATE_ENABLE_TRIGGER_STATE 1
 // if 1, modulation is allowed at trigger input HIGH
 // else if 0, modulation is allowed at trigger input LOW
 // 0 for 'old' TIP50 current source (working example).
 // 1 for 'new' BUZ80 current source (WIP).
+
+#define LED_ON 0
+#define LED_OFF !LED_ON
+// defines if the LED circuit is positive-logic or negative-logic
+// LED_ON 1, for 'old' TIP50
+// LED_ON 0, for 'new' BUZ80
 
 
 #define modulate_enable 3
@@ -103,19 +109,19 @@ uint32_t get_avg_trigger_low_time(void) {
           
   for (int i = 0; i < NUM_OF_TIMES_CHECK_TRIGGER_SIGNAL; i++) {
     
-    while (digitalRead(modulate_enable) == 0); //wait while signal is low
-    while (digitalRead(modulate_enable) == 1); //wait while signal is high
+    while (digitalRead(modulate_enable) == MODULATE_ENABLE_TRIGGER_STATE); //wait while signal is low
+    while (digitalRead(modulate_enable) == !MODULATE_ENABLE_TRIGGER_STATE); //wait while signal is high
     
     //signal is low.
   
     uint32_t begin_time_signal_low = micros();
   
-    while (digitalRead(modulate_enable) == 0); //wait while signal is low
+    while (digitalRead(modulate_enable) == MODULATE_ENABLE_TRIGGER_STATE); //wait while signal is low
   
     uint32_t end_time_signal_low = micros();
     uint32_t begin_time_signal_high = end_time_signal_low;
   
-    while (digitalRead(modulate_enable) == 1); //wait while signal is high
+    while (digitalRead(modulate_enable) == !MODULATE_ENABLE_TRIGGER_STATE); //wait while signal is high
   
     uint32_t end_time_signal_high = micros();
 
@@ -135,7 +141,7 @@ uint32_t get_avg_trigger_low_time(void) {
 
   uint32_t avg_period_time = avg_signal_low_time + avg_signal_high_time;
 
-  if (avg_period_time > 10000) {
+  if (avg_period_time > 10100) {
     Serial.print("Sanity check failed...");
     Serial.println(avg_period_time);
     return get_avg_trigger_low_time();
@@ -173,7 +179,7 @@ void setup() {
   pinMode(modulate_enable, INPUT);
 
   pinMode(led, OUTPUT);
-  digitalWrite(led, LOW);
+  digitalWrite(led, LED_OFF);
 
 #ifdef HARDCODE_MODULATE_TIME
 
@@ -196,7 +202,7 @@ void setup() {
   Serial.print("modulate_times_per_period: "); Serial.println(modulate_times_per_period);
 
   
-  digitalWrite(led, HIGH);
+  digitalWrite(led, LED_ON);
 
   
 
@@ -232,8 +238,12 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
   TCNT1 = timer1_counter;   // preload timer
   
   if (modulate_idx < modulate_times_per_period) {
-    
-    digitalWrite(led, m_seq[m_seq_idx]);
+
+    if (m_seq[m_seq_idx] == LED_ON) {
+      digitalWrite(led, LED_OFF);
+    } else {
+      digitalWrite(led, LED_ON);
+    }
 
     m_seq_idx++;
     modulate_idx++;
@@ -250,7 +260,7 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
       }
     }
   } else {
-    digitalWrite(led, HIGH);
+    digitalWrite(led, LED_ON);
     disable_timer();
   }
 }
@@ -270,12 +280,12 @@ void isr_change(void) {
       modulate_idx = 0;
       disable_timer();
   
-      digitalWrite(led, HIGH);
+      digitalWrite(led, LED_ON);
       
     } 
     
   } else {
-    digitalWrite(led, HIGH);
+    digitalWrite(led, LED_ON);
   }
 } 
 
