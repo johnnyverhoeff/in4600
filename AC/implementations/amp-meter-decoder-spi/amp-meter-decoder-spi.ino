@@ -144,7 +144,7 @@ uint32_t get_avg_trigger_low_time(void) {
 
   uint32_t avg_period_time = avg_signal_low_time + avg_signal_high_time;
 
-  if (avg_period_time > 10000) {
+  if (avg_period_time > 10100) {
     //Serial.print("Sanity check failed...");
     //Serial.println(avg_period_time);
     return get_avg_trigger_low_time();
@@ -338,6 +338,7 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
   PORTC ^= (1 << 7); // pin 31, for testing purposes only
 #endif
   
+
     
   if (sample_idx < modulate_times_per_period) {
 
@@ -349,6 +350,8 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
     } else {
       scaled_value = avg_adc_value - read_value ;
     }
+
+    //adc_buffer[adc_idx++] = read_value;
 
 
 
@@ -415,7 +418,7 @@ void isr_change(void) {
 
 
 
-
+#define SLOPE_NOISE 50
 
 void loop() {
 
@@ -432,47 +435,161 @@ void loop() {
     cli();
 
     /* changed from 0 to 1 !! , for differentiating */
-    for (uint16_t offset = 1; offset < (ADC_BUFFER_SIZE - L); offset++) {
+    for (uint16_t offset = 1; offset < (ADC_BUFFER_SIZE - 2*L); offset++) {
+      //break;
+      uint16_t abs_max_slope = 0;
+      
+      uint16_t abs_slope_per_led = 4095; // smallest absolute slope, but bigger than (around) 0
 
-      uint32_t signal_sum = 0;
-      int32_t corr_sum = 0;
+      int16_t *diff_signal = new int16_t[L - 1];
 
       
-      int16_t abs_min_slope = 4095;
-      int16_t abs_slope_per_led = 4095; // smallest absolute slope, but bigger than (around) 0
+      for (uint16_t i = 0; i < (L - 1); i++) {
+        diff_signal[i] = ((int16_t)adc_buffer[i + offset]) - ((int16_t)adc_buffer[i + offset - 1]);
 
-      for (uint16_t i = 0; i < L; i++) {
+        uint16_t abs_slope = abs( diff_signal[i] );
 
-        // this slope detection scheme works for when all the leds have roughly the same difference between on and off
-        // need better and proven, scheme for when there is a bigger difference between leds.
-        // if such a scheme is needed, depends on the hardware.
         
-        uint16_t abs_slope = abs(adc_buffer[i + offset] - adc_buffer[i + offset - 1]);
-        #define SLOPE_NOISE 50
-
         if (abs_slope > SLOPE_NOISE) {
           abs_slope_per_led = min(abs_slope_per_led, abs_slope);
         }
         
-      
-        signal_sum += adc_buffer[i + offset];
-        int8_t r_chip = 1 - 2 * ((int8_t)m_seq[i]);
-        corr_sum += (int16_t)adc_buffer[i + offset] * r_chip;
+        abs_max_slope = max(abs_max_slope, abs_slope);
       }
 
-      //Serial.println(abs_slope_per_led);
+      /*Serial.print("abs_min_slope: "); Serial.println(abs_min_slope);
+      Serial.print("abs_avg_slope: "); Serial.println(abs_avg_slope);
+      Serial.print("abs_max_slope: "); Serial.println(abs_max_slope);
+      Serial.print("abs_slope_per_led: "); Serial.println(abs_slope_per_led);*/
 
-      float calc_num_of_tx = (float)signal_sum / (abs_slope_per_led * (1 << (n - 1)));
-      //Serial.println(calc_num_of_tx);
+      float normalized_l_corr = 0;
 
+      if (abs_max_slope <= SLOPE_NOISE) {
+        // not so much change in signal, so probably no LEDs modulating, setting correlation at 0
 
-      float normalized_l_corr = ((float)-2 * corr_sum / abs_slope_per_led) - calc_num_of_tx;
-      Serial.println(normalized_l_corr);
-
+        normalized_l_corr = 0;
+      } else {
       
+        int16_t *integrated_diff_signal = new int16_t[L];
+
+        for (uint16_t i = 0; i < (L - 1); i++) {
+          if (diff_signal[i] != 0 && abs(diff_signal[i]) > SLOPE_NOISE) {
+            
+            if (diff_signal[i] < 0) {
+              // first slope is negative, so initial value must be a positive number
+              integrated_diff_signal[0] = abs_slope_per_led;
+            } else {
+              // else (0 or positive), intial value will be set to 0
+              integrated_diff_signal[0] = 0;
+            }
+
+            break;
+          }
+        }
 
 
+        //uint16_t avg_low_signal, avg_high_signal = 0;
+  
+        for (uint16_t i = 1; i < L; i++) {
+          
+          if (abs(diff_signal[i - 1]) > SLOPE_NOISE) {
+            integrated_diff_signal[i] = integrated_diff_signal[i - 1] + diff_signal[i - 1];
+          } else {
+            integrated_diff_signal[i] = integrated_diff_signal[i - 1];
+          }
+
+          if (integrated_diff_signal[i] < SLOPE_NOISE)
+            integrated_diff_signal[i] = 0;
+
+          //Serial.println(integrated_diff_signal[i]);
+
+          /*if (integrated_diff_signal[i] < 0 )
+            Serial.println( "BELOW ZERO ERROR");
+
+          if (integrated_diff_signal[i] > 3*abs_slope_per_led )
+            Serial.println( "ABOVE ... ERROR");*/
+
+          /*Serial.print("integrated_diff_signal: "); Serial.println(integrated_diff_signal[i-1]);
+          Serial.print("diff_signal: "); Serial.println(diff_signal[i-1]);*/
+
+          /*if (integrated_diff_signal[i] < (abs_slope_per_led/2.0)) {
+            avg_low_signal += integrated_diff_signal[i];
+          } else {
+            avg_high_signal += integrated_diff_signal[i];
+          }*/
+        }
+
+        /*avg_low_signal /= L;
+        avg_high_signal /= L;
+
+        for (uint16_t i = 1; i < L; i++) {
+
+          if (integrated_diff_signal[i] < (abs_slope_per_led/2.0)) {
+            integrated_diff_signal[i] = avg_low_signal;
+          } else {
+            integrated_diff_signal[i] = avg_high_signal;
+          }
+        }*/
+
+
+
+        
+
+
+        uint32_t signal_sum = 0;
+        int32_t corr_sum = 0;
+  
+        for (uint16_t i = 0; i < L; i++) {
+  
+          //signal_sum += integrated_diff_signal[i];
+  
+          
+          int8_t r_chip = 1 - 2 * ((int8_t)m_seq[i]);
+          corr_sum += (int16_t)integrated_diff_signal[i] * r_chip;
+          
+          //corr_sum += (int16_t)adc_buffer[i + offset] * r_chip;
+        }
+          
+        float calc_num_of_tx = 1.5;//(float)signal_sum / (abs_slope_per_led * (1 << (n - 1)));
+
+        if ( calc_num_of_tx < (1 << (n + 1))) {
+          // acceptable number...
+          //Serial.println(calc_num_of_tx);
+
+          normalized_l_corr = ((float)-2 * corr_sum / abs_slope_per_led) - calc_num_of_tx;
+          
+        } else {
+          normalized_l_corr = 0;
+        }
+
+
+        if (normalized_l_corr < -1.5 || normalized_l_corr > 31.5 || ( normalized_l_corr > 1 && normalized_l_corr < 29   )) {
+          /*Serial.print("corr: "); Serial.println(normalized_l_corr);
+          Serial.print("corr_sum: "); Serial.println(corr_sum);
+          Serial.print("abs_slope_per_led: "); Serial.println(abs_slope_per_led);*/
+          /*Serial.print("avg_low_signal: "); Serial.println(avg_low_signal);
+          Serial.print("avg_high_signal: "); Serial.println(avg_high_signal);*/
+
+          /*for (int i = 0; i < L; i++) {
+            Serial.println(integrated_diff_signal[i]);
+          }*/
+          
+          
+        }
+
+        delete integrated_diff_signal;
+        
+      }
+
+      delete diff_signal;
+      
+      Serial.println(normalized_l_corr);
+      
     }
+
+    /*for (uint16_t i = 0; i < ADC_BUFFER_SIZE; i++) {
+      Serial.println(adc_buffer[i]);
+    }*/
 
     adc_buffer_full = 0;
     sample_idx = 0;
