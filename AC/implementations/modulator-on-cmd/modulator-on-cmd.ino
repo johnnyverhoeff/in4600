@@ -44,6 +44,7 @@ uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
 //uint8_t poly[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
 
 //uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
+//uint8_t poly[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x^1 + 1
 
 uint8_t n = sizeof(poly) / sizeof(uint8_t) - 1;
 uint16_t L = (1 << n) - 1;

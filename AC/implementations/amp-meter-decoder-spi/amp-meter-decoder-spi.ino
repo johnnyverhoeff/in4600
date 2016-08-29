@@ -32,7 +32,8 @@ uint8_t adc_buffer_full;
 uint8_t sample_idx = 0;
 
 uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
-uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
+//uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
+
 //uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
 
 uint8_t n = sizeof(poly) / sizeof(uint8_t) - 1;
@@ -40,9 +41,9 @@ uint16_t L = (1 << n) - 1;
 uint16_t N = (1 << n) + 1;
 
 uint8_t *m_seq;
-uint8_t *m_seq2;
+//uint8_t *m_seq2;
 uint16_t m_seq_idx;
-uint16_t m_seq2_idx;
+//uint16_t m_seq2_idx;
 
 
 
@@ -205,7 +206,7 @@ void setup() {
   uint32_t avg_trigger_low_time = get_avg_trigger_low_time();
 
   time_to_modulate_per_period = min(7000 /* us */, avg_trigger_low_time);
-  //Serial.print("avg_trigger_low_time: "); Serial.println(avg_trigger_low_time);
+  /*Serial.print("avg_trigger_low_time: ");*/ Serial.println(avg_trigger_low_time);
 
 #endif
 
@@ -238,13 +239,13 @@ void setup() {
   }
 
   m_seq = new uint8_t[L];
-  m_seq2 = new uint8_t[L];
+  //m_seq2 = new uint8_t[L];
   
   m_seq_idx = 0;
-  m_seq2_idx = 0;
+  //m_seq2_idx = 0;
   
   m_seq_create(poly, n, 1, m_seq);
-  m_seq_create(poly2, n, 1, m_seq2);
+  //m_seq_create(poly2, n, 1, m_seq2);
 
   /*for (int i = 0; i < L; i++) {
     Serial.print(m_seq[i]); Serial.print(" ");
@@ -351,13 +352,6 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
       scaled_value = avg_adc_value - read_value ;
     }
 
-    //adc_buffer[adc_idx++] = read_value;
-
-
-
-
-
-
     // adds a offset to the signal, this should matter, so it is here for test purposes
     //#define OFFSET 1326 
 
@@ -366,9 +360,6 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
     // The amplitude should be roughly the same as the real LED (~250) 
     //#define OTHER_LED_AMPLITUDE 250
     //#define OTHER_LED_OFFSET 6
-
-
-
 
 #if defined(OFFSET)
 
@@ -436,7 +427,7 @@ void loop() {
 
     /* changed from 0 to 1 !! , for differentiating */
     for (uint16_t offset = 1; offset < (ADC_BUFFER_SIZE - 2*L); offset++) {
-      //break;
+
       uint16_t abs_max_slope = 0;
       
       uint16_t abs_slope_per_led = 4095; // smallest absolute slope, but bigger than (around) 0
@@ -448,7 +439,6 @@ void loop() {
         diff_signal[i] = ((int16_t)adc_buffer[i + offset]) - ((int16_t)adc_buffer[i + offset - 1]);
 
         uint16_t abs_slope = abs( diff_signal[i] );
-
         
         if (abs_slope > SLOPE_NOISE) {
           abs_slope_per_led = min(abs_slope_per_led, abs_slope);
@@ -456,11 +446,6 @@ void loop() {
         
         abs_max_slope = max(abs_max_slope, abs_slope);
       }
-
-      /*Serial.print("abs_min_slope: "); Serial.println(abs_min_slope);
-      Serial.print("abs_avg_slope: "); Serial.println(abs_avg_slope);
-      Serial.print("abs_max_slope: "); Serial.println(abs_max_slope);
-      Serial.print("abs_slope_per_led: "); Serial.println(abs_slope_per_led);*/
 
       float normalized_l_corr = 0;
 
@@ -486,9 +471,6 @@ void loop() {
             break;
           }
         }
-
-
-        //uint16_t avg_low_signal, avg_high_signal = 0;
   
         for (uint16_t i = 1; i < L; i++) {
           
@@ -500,81 +482,30 @@ void loop() {
 
           if (integrated_diff_signal[i] < SLOPE_NOISE)
             integrated_diff_signal[i] = 0;
-
-          //Serial.println(integrated_diff_signal[i]);
-
-          /*if (integrated_diff_signal[i] < 0 )
-            Serial.println( "BELOW ZERO ERROR");
-
-          if (integrated_diff_signal[i] > 3*abs_slope_per_led )
-            Serial.println( "ABOVE ... ERROR");*/
-
-          /*Serial.print("integrated_diff_signal: "); Serial.println(integrated_diff_signal[i-1]);
-          Serial.print("diff_signal: "); Serial.println(diff_signal[i-1]);*/
-
-          /*if (integrated_diff_signal[i] < (abs_slope_per_led/2.0)) {
-            avg_low_signal += integrated_diff_signal[i];
-          } else {
-            avg_high_signal += integrated_diff_signal[i];
-          }*/
+            
         }
-
-        /*avg_low_signal /= L;
-        avg_high_signal /= L;
-
-        for (uint16_t i = 1; i < L; i++) {
-
-          if (integrated_diff_signal[i] < (abs_slope_per_led/2.0)) {
-            integrated_diff_signal[i] = avg_low_signal;
-          } else {
-            integrated_diff_signal[i] = avg_high_signal;
-          }
-        }*/
-
-
-
-        
-
 
         uint32_t signal_sum = 0;
         int32_t corr_sum = 0;
   
         for (uint16_t i = 0; i < L; i++) {
   
-          //signal_sum += integrated_diff_signal[i];
+          signal_sum += integrated_diff_signal[i];
   
-          
           int8_t r_chip = 1 - 2 * ((int8_t)m_seq[i]);
           corr_sum += (int16_t)integrated_diff_signal[i] * r_chip;
-          
-          //corr_sum += (int16_t)adc_buffer[i + offset] * r_chip;
         }
           
-        float calc_num_of_tx = 1.5;//(float)signal_sum / (abs_slope_per_led * (1 << (n - 1)));
+        float calc_num_of_tx = (float)signal_sum / (abs_slope_per_led * (1 << (n - 1)));
 
         if ( calc_num_of_tx < (1 << (n + 1))) {
           // acceptable number...
           //Serial.println(calc_num_of_tx);
-
+          
           normalized_l_corr = ((float)-2 * corr_sum / abs_slope_per_led) - calc_num_of_tx;
           
         } else {
           normalized_l_corr = 0;
-        }
-
-
-        if (normalized_l_corr < -1.5 || normalized_l_corr > 31.5 || ( normalized_l_corr > 1 && normalized_l_corr < 29   )) {
-          /*Serial.print("corr: "); Serial.println(normalized_l_corr);
-          Serial.print("corr_sum: "); Serial.println(corr_sum);
-          Serial.print("abs_slope_per_led: "); Serial.println(abs_slope_per_led);*/
-          /*Serial.print("avg_low_signal: "); Serial.println(avg_low_signal);
-          Serial.print("avg_high_signal: "); Serial.println(avg_high_signal);*/
-
-          /*for (int i = 0; i < L; i++) {
-            Serial.println(integrated_diff_signal[i]);
-          }*/
-          
-          
         }
 
         delete integrated_diff_signal;
