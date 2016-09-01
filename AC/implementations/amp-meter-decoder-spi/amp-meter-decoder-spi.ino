@@ -1,4 +1,9 @@
 
+#define NUM_OF_LEDS 3
+
+uint8_t start_state_per_led[] = {0, 1, 2};
+
+
 #include <SPI.h>
 
 #define ADC_CS 38 // arduino PIN number
@@ -31,19 +36,31 @@ uint8_t adc_buffer_full;
 
 uint8_t sample_idx = 0;
 
-uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
+//uint8_t poly[] = {1, 0, 0, 1, 0, 1}; // x^5 + x^2 + 1
 //uint8_t poly2[] = {1, 1, 1, 1, 0, 1}; // x^5 + x^4 + x^3 +x^2 + 1
 
-//uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
+//uint8_t poly[] = {1, 0, 0, 0, 0, 1, 1}; // x^6 + x + 1
+//uint8_t poly2[] = {1, 1, 0, 0, 1, 1, 1}; // x^6 + x^5 + x^2 + x + 1
+
+uint8_t poly[] = {1, 0, 0, 0, 1, 0, 0, 1}; // x^7 + x^3 + 1
+uint8_t poly2[] = {1, 0, 0, 0, 1, 1, 1, 1}; // x^7 + x^3 + x^2 + x + 1
+
+//uint8_t poly[] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 1}; // x^9 + x^4 + 1
+//uint8_t poly2[] = {1, 0, 0, 1, 0, 1, 1, 0, 0, 1}; // x^9 + x^6 + x^4 + x^3 + 1
+
+//uint8_t poly[] = {1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1}; // x^10 + x^2 + 1
+//uint8_t poly2[] = {1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1}; // x^10 + x^8 + x^3 + x^2 + 1
 
 uint8_t n = sizeof(poly) / sizeof(uint8_t) - 1;
 uint16_t L = (1 << n) - 1;
 uint16_t N = (1 << n) + 1;
 
-uint8_t *m_seq;
-//uint8_t *m_seq2;
-uint16_t m_seq_idx;
-//uint16_t m_seq2_idx;
+uint16_t num_of_balanced_gold_seq;
+uint16_t *balanced_gold_seq_start_states = new uint16_t[N];
+
+
+uint8_t **gold_seq_per_led;
+
 
 
 
@@ -64,6 +81,137 @@ void clear_timer_flag(void) {
 }*/
 
 
+
+
+
+/*
+This function takes two polynomials arrays and the shift register length n, 
+writes the number of balanced gold seqs it produces 
+and writes to an array the start states of the second register to obtain balanced gold codes.\
+
+call like so :
+
+uint8_t n = 5;
+uint16_t L = (1 << n) - 1;
+uint8_t p1[] = {...};
+uint8_t p2[] = {...};
+
+uint8_t Nb;
+
+uint8_t bgs = new uint8_t[L];
+
+calc_balanced_gold_codes_idx(p1, p2, n, Nb, bgs);
+*/
+void calc_balanced_gold_codes_idx(uint8_t *pref_poly1, uint8_t *pref_poly2, uint8_t n, uint16_t &num_of_balanced_gold_seq, uint16_t *balanced_gold_seq_start_states) {
+  uint16_t L = (1 << n) - 1;
+  uint16_t N = (1 << n) + 1;
+
+  uint16_t start_state1 = 1;
+
+  num_of_balanced_gold_seq = 0;
+
+  for (uint16_t start_state2 = 1; start_state2 <= L; start_state2++) {
+
+    uint16_t lfsr1 = start_state1;
+    uint16_t lfsr2 = start_state2;
+
+    uint8_t out1;
+    uint8_t out2;
+
+    uint8_t gold_out;
+    uint16_t sum_of_gold_seq = 0;
+
+    do {
+      out1 = out2 = 0;
+
+      for (uint8_t i = n; i > 0; i--) {
+        if (pref_poly1[i] == 1) {
+          out1 ^= (lfsr1 >> (n - i));
+        }
+
+        if (pref_poly2[i] == 1) {
+          out2 ^= (lfsr2 >> (n - i));
+        }
+      }
+
+      out1 &= 1;
+      out2 &= 1;
+
+      gold_out = out1 ^ out2;
+      sum_of_gold_seq += gold_out;
+
+      lfsr1 = (lfsr1 >> 1) | (out1 << (n - 1));
+      lfsr2 = (lfsr2 >> 1) | (out2 << (n - 1));
+
+    } while (lfsr1 != start_state1);
+
+
+    if (sum_of_gold_seq == (1 << (n - 1))) {
+      // Half + 1 are ones, so balanced
+      // save the start_state2;
+      balanced_gold_seq_start_states[num_of_balanced_gold_seq++] = start_state2;
+    }
+
+
+  }
+
+}
+
+/*
+This function takes two polynomials arrays and the shift register length n, 
+and the start state for the second LFSR
+and writes to an other array the gold code.
+
+call like so:
+
+uint8_t n = 5;
+uint16_t L = (1 << n) - 1;
+uint8_t p1[] = {...};
+uint8_t p2[] = {...};
+
+uint8_t *gs = new uint8_t[L];
+
+
+gold_seq_create(p1, p2, n, 1, gs);
+
+*/
+void gold_seq_create(uint8_t *pref_poly1, uint8_t *pref_poly2, uint8_t n, uint16_t start_state2, uint8_t *gold_seq) {
+  //uint16_t L = (1 << n) - 1;
+  //gold_seq = new uint8_t[L];
+  
+  uint16_t start_state1 = 1;
+
+  uint16_t lfsr1 = start_state1;
+  uint16_t lfsr2 = start_state2;
+
+  uint8_t out1;
+  uint8_t out2;
+
+  uint16_t step_pos = 0;
+  
+  do {
+    out1 = out2 = 0;
+
+    for (uint8_t i = n; i > 0; i--) {
+      if (pref_poly1[i] == 1) {
+        out1 ^= (lfsr1 >> (n - i));
+      }
+
+      if (pref_poly2[i] == 1) {
+        out2 ^= (lfsr2 >> (n - i));
+      }
+    }
+
+    out1 &= 1;
+    out2 &= 1;
+
+    gold_seq[step_pos++] = out1 ^ out2;
+
+    lfsr1 = (lfsr1 >> 1) | (out1 << (n - 1));
+    lfsr2 = (lfsr2 >> 1) | (out2 << (n - 1));
+
+  } while (lfsr1 != start_state1);
+}
 
 /*
 This function creates an m-sequence with a given polynomial.
@@ -101,6 +249,15 @@ void m_seq_create(uint8_t *poly, uint8_t n, uint16_t start_state, uint8_t *m_seq
   } while (lfsr != start_state);
   
 }
+
+
+
+
+
+
+
+
+
 
 uint32_t get_avg_trigger_low_time(void) {
   uint32_t  avg_signal_low_time = 0, 
@@ -178,8 +335,6 @@ void init_timer() {
   TCCR1B |= (1 << CS12);    // 256 prescaler 
 }
 
-
-
 void setup() { 
   Serial.begin(250000);
 
@@ -238,14 +393,25 @@ void setup() {
     adc_buffer[i] = 0;
   }
 
-  m_seq = new uint8_t[L];
-  //m_seq2 = new uint8_t[L];
+
+  calc_balanced_gold_codes_idx(poly, poly2, n, num_of_balanced_gold_seq, balanced_gold_seq_start_states);
+
+  gold_seq_per_led = new uint8_t*[NUM_OF_LEDS];
+
+  for (uint8_t i = 0; i < NUM_OF_LEDS; i++) {
+    gold_seq_per_led[i] = new uint8_t[L];
+
+    gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[start_state_per_led[i]], gold_seq_per_led[i]);
+  }
   
-  m_seq_idx = 0;
-  //m_seq2_idx = 0;
+ 
+
   
-  m_seq_create(poly, n, 1, m_seq);
-  //m_seq_create(poly2, n, 1, m_seq2);
+  
+
+
+
+
 
   /*for (int i = 0; i < L; i++) {
     Serial.print(m_seq[i]); Serial.print(" ");
@@ -352,6 +518,7 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
       scaled_value = avg_adc_value - read_value ;
     }
 
+/*
     // adds a offset to the signal, this should matter, so it is here for test purposes
     //#define OFFSET 1326 
 
@@ -376,6 +543,8 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
     }
     
 #endif
+
+*/
     
     adc_buffer[adc_idx++] = scaled_value;
 
@@ -457,12 +626,17 @@ void loop() {
       
         int16_t *integrated_diff_signal = new int16_t[L];
 
+        /*Serial.print("abs_max_slope: "); Serial.println(abs_max_slope);
+        Serial.print("abs_slope_per_led: "); Serial.println(abs_slope_per_led);*/
+        
+
+
         for (uint16_t i = 0; i < (L - 1); i++) {
           if (diff_signal[i] != 0 && abs(diff_signal[i]) > SLOPE_NOISE) {
             
             if (diff_signal[i] < 0) {
               // first slope is negative, so initial value must be a positive number
-              integrated_diff_signal[0] = abs_slope_per_led;
+              integrated_diff_signal[0] = abs_max_slope ;//abs_slope_per_led; <------ TEST THISSSS !!!!!!!!!!!!!!!!!!
             } else {
               // else (0 or positive), intial value will be set to 0
               integrated_diff_signal[0] = 0;
@@ -492,7 +666,7 @@ void loop() {
   
           signal_sum += integrated_diff_signal[i];
   
-          int8_t r_chip = 1 - 2 * ((int8_t)m_seq[i]);
+          int8_t r_chip = 1 - 2 * ((int8_t)gold_seq_per_led[0][i]);
           corr_sum += (int16_t)integrated_diff_signal[i] * r_chip;
         }
           
@@ -513,8 +687,12 @@ void loop() {
       }
 
       delete diff_signal;
-      
-      Serial.println(normalized_l_corr);
+
+
+      //if ( (normalized_l_corr < (1.5*L)) &&  (normalized_l_corr > (-1.5*L))   ) {
+        Serial.println(normalized_l_corr);
+      //}
+
       
     }
 
