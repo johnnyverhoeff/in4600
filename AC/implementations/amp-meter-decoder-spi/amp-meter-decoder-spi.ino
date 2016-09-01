@@ -603,6 +603,7 @@ void loop() {
 
       int16_t *diff_signal = new int16_t[L - 1];
 
+      uint16_t min_signal = 4095;
       
       for (uint16_t i = 0; i < (L - 1); i++) {
         diff_signal[i] = ((int16_t)adc_buffer[i + offset]) - ((int16_t)adc_buffer[i + offset - 1]);
@@ -614,6 +615,8 @@ void loop() {
         }
         
         abs_max_slope = max(abs_max_slope, abs_slope);
+
+        min_signal = min(min_signal, adc_buffer[i + offset - 1]);
       }
 
       float normalized_l_corr = 0;
@@ -624,50 +627,28 @@ void loop() {
         normalized_l_corr = 0;
       } else {
       
-        int16_t *integrated_diff_signal = new int16_t[L];
+        int16_t *improved_signal = new int16_t[L];
 
-        /*Serial.print("abs_max_slope: "); Serial.println(abs_max_slope);
-        Serial.print("abs_slope_per_led: "); Serial.println(abs_slope_per_led);*/
-        
+        for (uint16_t i = 0; i < L; i++) {
 
+          improved_signal[i] = adc_buffer[i + offset] - min_signal;
 
-        for (uint16_t i = 0; i < (L - 1); i++) {
-          if (diff_signal[i] != 0 && abs(diff_signal[i]) > SLOPE_NOISE) {
-            
-            if (diff_signal[i] < 0) {
-              // first slope is negative, so initial value must be a positive number
-              integrated_diff_signal[0] = abs_max_slope ;//abs_slope_per_led; <------ TEST THISSSS !!!!!!!!!!!!!!!!!!
-            } else {
-              // else (0 or positive), intial value will be set to 0
-              integrated_diff_signal[0] = 0;
-            }
-
-            break;
-          }
-        }
-  
-        for (uint16_t i = 1; i < L; i++) {
+          if (improved_signal[i] <= SLOPE_NOISE)
+            improved_signal[i] = 0;
           
-          if (abs(diff_signal[i - 1]) > SLOPE_NOISE) {
-            integrated_diff_signal[i] = integrated_diff_signal[i - 1] + diff_signal[i - 1];
-          } else {
-            integrated_diff_signal[i] = integrated_diff_signal[i - 1];
-          }
-
-          if (integrated_diff_signal[i] < SLOPE_NOISE)
-            integrated_diff_signal[i] = 0;
-            
         }
+
+        
 
         uint32_t signal_sum = 0;
         int32_t corr_sum = 0;
   
         for (uint16_t i = 0; i < L; i++) {
   
-          signal_sum += integrated_diff_signal[i];
+          signal_sum += improved_signal[i];
   
           int8_t r_chip = 1 - 2 * ((int8_t)gold_seq_per_led[0][i]);
-          corr_sum += (int16_t)integrated_diff_signal[i] * r_chip;
+          corr_sum += (int16_t)improved_signal[i] * r_chip;
         }
           
         float calc_num_of_tx = (float)signal_sum / (abs_slope_per_led * (1 << (n - 1)));
@@ -682,7 +663,7 @@ void loop() {
           normalized_l_corr = 0;
         }
 
-        delete integrated_diff_signal;
+        delete improved_signal;
         
       }
 
