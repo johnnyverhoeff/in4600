@@ -670,9 +670,9 @@ void loop() {
       delete diff_signal;
 
 
-      //if ( (normalized_l_corr < (1.5*L)) &&  (normalized_l_corr > (-1.5*L))   ) {
+      if ( (normalized_l_corr < (1.4*L)) &&  (normalized_l_corr > (-1.5*L))   ) {
         Serial.println(normalized_l_corr);
-      //}
+      }
 
       
     }

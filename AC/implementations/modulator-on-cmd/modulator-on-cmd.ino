@@ -1,6 +1,7 @@
 
-#define START_STATE 0
+//#define START_STATE 0
 //#define START_STATE 1
+#define START_STATE 2
 
 #define CONT_TX 
 // define this for continious modulation, 
