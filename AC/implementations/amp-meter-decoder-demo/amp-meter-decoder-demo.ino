@@ -3,10 +3,15 @@
 
 uint8_t start_state_per_led[] = {0, 1, 2};
 
+struct led_info_t {
+  uint16_t num_of_times_off_in_seq;
+  uint16_t num_of_times_on_in_seq;
 
-uint8_t *old_on_state_per_led;
-uint8_t *new_on_state_per_led;
-uint16_t *num_times_off_in_seq_per_led;
+  uint8_t old_state;
+  uint8_t new_state;
+};
+
+led_info_t *leds_info;
 
 
 #include <SPI.h>
@@ -409,20 +414,15 @@ void setup() {
     gold_seq_create(poly, poly2, n, balanced_gold_seq_start_states[start_state_per_led[i]], gold_seq_per_led[i]);
   }
   
- 
 
-  
-  
-  old_on_state_per_led = new uint8_t[NUM_OF_LEDS];
-  new_on_state_per_led = new uint8_t[NUM_OF_LEDS];
 
-  num_times_off_in_seq_per_led = new uint16_t[NUM_OF_LEDS];
+  leds_info = new led_info_t[NUM_OF_LEDS];
   
   for (uint8_t i = 0; i < NUM_OF_LEDS; i++) {
-     old_on_state_per_led[i] = 0;
-     new_on_state_per_led[i] = 0;
-     
-     num_times_off_in_seq_per_led[i] = 0;
+     leds_info[i].num_of_times_off_in_seq = 0;
+     leds_info[i].num_of_times_on_in_seq = 0;
+     leds_info[i].new_state = 0;
+     leds_info[i].old_state = 0;
   }
 
 
@@ -635,11 +635,11 @@ void loop() {
       }
 
       if (abs_max_slope <= SLOPE_NOISE) {
-        // not so much change in signal, so probably no LEDs modulating, setting new state of all leds to 0
+        // not so much change in signal, so probably no LEDs modulating, add 1 to number times off, reset num of times on
 
         for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
-           new_on_state_per_led[led] = 0;
-           num_times_off_in_seq_per_led[led]++;
+           leds_info[led].num_of_times_off_in_seq++;
+           //leds_info[led].num_of_times_on_in_seq = 0;  
         }
         
       } else {
@@ -675,16 +675,19 @@ void loop() {
 
             //check if correlation is somewhat in bounds..
             if ( (normalized_l_corr < (1.4*L)) &&  (normalized_l_corr > (-1.4*L)) ) {
-              new_on_state_per_led[led] = normalized_l_corr > ((float)L/2.0);
+              
+              uint8_t state_of_led = normalized_l_corr > ((float)L/2.0);
 
-              if (new_on_state_per_led[led] == 1) {
-                num_times_off_in_seq_per_led[led] = 0;
+              if (state_of_led == 1) {
+                leds_info[led].num_of_times_on_in_seq++;
+                leds_info[led].num_of_times_off_in_seq = 0;
               } else {
-                num_times_off_in_seq_per_led[led]++;
+                //leds_info[led].num_of_times_on_in_seq = 0;
+                leds_info[led].num_of_times_off_in_seq++;
               }
               
             } else {
-              new_on_state_per_led[led] = old_on_state_per_led[led];
+              leds_info[led].new_state = leds_info[led].old_state;
             }
             
           }
@@ -692,8 +695,8 @@ void loop() {
         } else {
           
           // not reasonable number, either set to 0 or to old state....
-          for (uint8_t i = 0; i < NUM_OF_LEDS; i++) {
-             new_on_state_per_led[i] = old_on_state_per_led[i];
+          for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+             leds_info[led].new_state = leds_info[led].old_state;
           }
         }
 
@@ -703,21 +706,39 @@ void loop() {
 
       delete diff_signal;
 
-      for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
 
-        if (new_on_state_per_led[led] != old_on_state_per_led[led]) {
-          if (new_on_state_per_led[led]) {
-            Serial.print("led "); Serial.print(led); Serial.print(": "); Serial.println(new_on_state_per_led[led]);
-            old_on_state_per_led[led] = new_on_state_per_led[led];
-          } else if (num_times_off_in_seq_per_led[led] > 2*L) {
-            Serial.print("led "); Serial.print(led); Serial.print(": "); Serial.println(new_on_state_per_led[led]);
-            old_on_state_per_led[led] = new_on_state_per_led[led];
-          }
+      #define ON_HYSTERESIS 5
+      #define OFF_HYSTERESIS 2*L
+
+      uint8_t print_led_states_flag = 0;
+      
+      for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+        if (leds_info[led].num_of_times_on_in_seq > ON_HYSTERESIS) {
+          leds_info[led].new_state = 1;
+          leds_info[led].num_of_times_on_in_seq = 0;
+        } else if (leds_info[led].num_of_times_off_in_seq > OFF_HYSTERESIS) {
+          leds_info[led].new_state = 0;
+          leds_info[led].num_of_times_off_in_seq = 0;
         }
 
-
-        
+        if (leds_info[led].new_state != leds_info[led].old_state) {
+          print_led_states_flag = 1;
+          break;
+        }
       }
+
+      if (print_led_states_flag) {
+        Serial.println("led: 0 1 2");
+        Serial.print  ("     ");
+        for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
+          Serial.print(leds_info[led].new_state); Serial.print(" ");
+          leds_info[led].old_state = leds_info[led].new_state;
+        }
+        Serial.println();
+        Serial.println();
+      }
+
+      
       
     }
 
