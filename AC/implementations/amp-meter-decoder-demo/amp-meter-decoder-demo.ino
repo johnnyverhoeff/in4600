@@ -476,12 +476,6 @@ uint16_t get_ground_adc_readings(void) {
 
   uint16_t avg = sum / SAMPLES_FOR_AVG;
 
-  /*Serial.print("sum: "); Serial.println(sum);
-  Serial.print("avg: "); Serial.println(avg);
-  Serial.print("min: "); Serial.println(min_val);
-  Serial.print("max: "); Serial.println(max_val);
-  Serial.print("avg_min_max: "); Serial.println( (min_val + max_val) / 2);*/
-
   return avg;
 }
 
@@ -520,8 +514,6 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
   PORTC ^= (1 << 7); // pin 31, for testing purposes only
 #endif
   
-
-    
   if (sample_idx < modulate_times_per_period) {
 
     uint16_t read_value = readADC(0);
@@ -532,34 +524,6 @@ ISR(TIMER1_OVF_vect) {      // interrupt service routine
     } else {
       scaled_value = avg_adc_value - read_value ;
     }
-
-/*
-    // adds a offset to the signal, this should matter, so it is here for test purposes
-    //#define OFFSET 1326 
-
-    // this adds an artificial other LED to the read ADC signal
-    // this will give the correlatet signal more than 2 levels, i.e., the t(n) plays a role
-    // The amplitude should be roughly the same as the real LED (~250) 
-    //#define OTHER_LED_AMPLITUDE 250
-    //#define OTHER_LED_OFFSET 6
-
-#if defined(OFFSET)
-
-    scaled_value += OFFSET;
-    
-#endif
-
-#if defined(OTHER_LED_AMPLITUDE) && defined(OTHER_LED_OFFSET)
-
-    scaled_value += (OTHER_LED_OFFSET + OTHER_LED_AMPLITUDE * m_seq2[m_seq2_idx++]);
-
-    if (m_seq2_idx >= L) {
-      m_seq2_idx = 0;
-    }
-    
-#endif
-
-*/
     
     adc_buffer[adc_idx++] = scaled_value;
 
@@ -635,11 +599,10 @@ void loop() {
       }
 
       if (abs_max_slope <= SLOPE_NOISE) {
-        // not so much change in signal, so probably no LEDs modulating, add 1 to number times off, reset num of times on
+        // not so much change in signal, so probably no LEDs modulating, add 1 to number times off
 
         for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
-           leds_info[led].num_of_times_off_in_seq++;
-           //leds_info[led].num_of_times_on_in_seq = 0;  
+           leds_info[led].num_of_times_off_in_seq++; 
         }
         
       } else {
@@ -680,9 +643,7 @@ void loop() {
 
               if (state_of_led == 1) {
                 leds_info[led].num_of_times_on_in_seq++;
-                leds_info[led].num_of_times_off_in_seq = 0;
               } else {
-                //leds_info[led].num_of_times_on_in_seq = 0;
                 leds_info[led].num_of_times_off_in_seq++;
               }
               
@@ -694,7 +655,7 @@ void loop() {
           
         } else {
           
-          // not reasonable number, either set to 0 or to old state....
+          // not reasonable number, either set to old state....
           for (uint8_t led = 0; led < NUM_OF_LEDS; led++) {
              leds_info[led].new_state = leds_info[led].old_state;
           }
@@ -742,9 +703,6 @@ void loop() {
       
     }
 
-    /*for (uint16_t i = 0; i < ADC_BUFFER_SIZE; i++) {
-      Serial.println(adc_buffer[i]);
-    }*/
 
     adc_buffer_full = 0;
     sample_idx = 0;
